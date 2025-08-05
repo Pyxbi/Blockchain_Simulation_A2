@@ -1,4 +1,4 @@
-# Python Blockchain Assignment
+# Blockchain Simulation Assignment
 
 ## Overview
 This project is a comprehensive, modular blockchain implementation in Python, designed to meet academic requirements for a blockchain assignment. It features a robust block structure, Ed25519 cryptographic signing, transaction management, Proof-of-Work consensus, double-spend prevention, P2P networking, wallet functionality, data persistence, and an interactive command-line interface.
