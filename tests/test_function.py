@@ -1,4 +1,5 @@
 from blockchain import Blockchain
+from transaction import Transaction
 
 
 class TestBlockchain:

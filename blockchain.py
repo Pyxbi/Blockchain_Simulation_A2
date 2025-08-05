@@ -1,6 +1,7 @@
 import time
 import logging
 import queue
+from transaction import Transaction
 from models import Block
 from consensus import Consensus
 from wallet import create_wallet as wallet_create_wallet

@@ -121,6 +121,7 @@ You can also run individual test files:
 ```bash
 python tests/test_mining.py
 python tests/test_function.py
+python test/test_p2p.py
 ```
 
 ## Extending the System

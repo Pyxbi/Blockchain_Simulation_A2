@@ -1,0 +1,1 @@
+{"chain": [{"mined_by": "genesis", "transactions": [], "height": 0, "difficulty": 4, "hash": "a4d8b06f32b5bb56503bcce687929d747ec366450680ded332f9dd0b3c4378b5", "previous_hash": "0", "nonce": 0, "timestamp": 1754383832, "merkle_root": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}], "balances": {}, "wallets": {}, "public_keys": {}}

@@ -13,7 +13,6 @@ def main():
     print("Initializing blockchain...")
     
     blockchain = Blockchain()
-    runtest = TestBlockchain()
     
     # Create test nodes for P2P simulation
     print("Setting up P2P network simulation...")
@@ -385,7 +384,7 @@ def main():
 
         elif choice == '8':
             # Run tests
-            runtest.run_tests()
+            TestBlockchain.run_tests()
 
         elif choice == '9':
             # Exit
