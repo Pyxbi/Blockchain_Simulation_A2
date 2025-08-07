@@ -22,7 +22,7 @@ Blockchain Core
 ├── schema.py          - Marshmallow-based validation
 ├── persistence.py     - JSON-based data storage
 ├── p2p.py            - Peer-to-peer networking simulation
-└── main.py           - Interactive CLI interface
+└── main.py           - Serves as the user-facing Command-Line Interface (CLI), parsing user commands to interact with the blockchain
 ```
 
 ### 1.2 Design Justifications

@@ -1,5 +1,6 @@
 import hashlib
 import json
+from transaction import Transaction
 
 class Block:
     def __init__(
@@ -75,6 +76,22 @@ class Block:
             'timestamp': self.timestamp,
             'merkle_root': self.merkle_root
         }
+    # In your Block class
+    @classmethod
+    def from_dict(cls, data):
+        # Convert transaction dicts back to Transaction objects
+        transactions = [Transaction.from_dict(tx) for tx in data.get('transactions', [])]
+        return cls(
+            mined_by=data['mined_by'],
+            transactions=transactions,
+            height=data['height'],
+            difficulty=data['difficulty'],
+            hash=data['hash'],
+            previous_hash=data['previous_hash'],
+            nonce=data['nonce'],
+            timestamp=data['timestamp'],
+            merkle_root=data.get('merkle_root')
+        )
 
 class Peer:
     def __init__(self, ip, port, last_seen):

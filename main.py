@@ -1,40 +1,56 @@
-from blockchain import Blockchain
-from tests.test_function import TestBlockchain
-from transaction import Transaction
+import sys
+import threading
 import time
 import logging
+from blockchain import Blockchain
+from transaction import Transaction
 
 # Configure logging - reduce verbosity for better UX
-logging.basicConfig(level=logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
+# Change logging.WARNING to logging.INFO to see the P2P messages
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def main():
-    """Complete CLI interface for interacting with the blockchain."""
-    print("🚀 Welcome to the Blockchain Demo!")
-    print("Initializing blockchain...")
+    """Complete CLI interface for interacting with the node."""
+    # --- 1. Get Node Config from Command Line ---
+    if len(sys.argv) < 2:
+        print("Usage: python main.py <port> [peer_port1] [peer_port2] ...")
+        print("Example (first node): python main.py 5000")
+        print("Example (second node, connects to first): python main.py 5001 5000")
+        sys.exit(1)
+
+    port = int(sys.argv[1])
+    host = '127.0.0.1'
+    peer_ports = sys.argv[2:]
+
+    # --- 2. Initialize a Single Node ---
+    print(f"🚀 Initializing node node on port {port}...")
+    # This is our single node instance
+    node = Blockchain(host=host, port=port)
+
+    # --- 3. Start the Server in a Background Thread ---
+    # This is crucial! It runs the network listener without blocking the CLI.
+    server_thread = threading.Thread(target=node.run, daemon=True)
+    server_thread.start()
+    print(f"✅ Node server running in background at http://{host}:{port}")
+
+    # --- 4. Connect to Peers ---
+    for peer_p in peer_ports:
+        peer_url = f"http://{host}:{peer_p}"
+        node.connect_to_peer(peer_url)
     
-    blockchain = Blockchain()
-    
-    # Create test nodes for P2P simulation
-    print("Setting up P2P network simulation...")
-    node1 = Blockchain()
-    node2 = Blockchain()
-    blockchain.nodes.extend([node1, node2])
-    node1.nodes.extend([blockchain, node2])
-    node2.nodes.extend([blockchain, node1])
-    
-    # Start P2P nodes
-    blockchain.start_node()
-    node1.start_node()
-    node2.start_node()
-    
-    print("✅ Blockchain initialized successfully!")
+    # Give the server a moment to start and connect
+    time.sleep(2)
+    print("✅ node CLI is ready!")
+
+    # --- 5. Run Your Existing CLI ---
+    # The `node` variable is now `node`.
 
     while True:
-        print("\n=== Blockchain CLI ===")
+        print("\n=== node CLI ===")
         print("1. Create wallet")
         print("2. Create transaction")
         print("3. Mine block")
-        print("4. View blockchain")
+        print("4. View node")
         print("5. Check balance")
         print("6. View all wallets")
         print("7. Add funds to wallet (for testing)")
@@ -42,7 +58,7 @@ def main():
         print("9. Exit")
         
         try:
-            choice = input("Enter choice (1-9): ").strip()
+            choice = input(f"Node@{port}> ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\nExiting...")
             break
@@ -55,24 +71,24 @@ def main():
             except ValueError:
                 balance = 100.0
                 
-            address, private_key_hex, public_key_hex = blockchain.create_wallet(initial_balance=balance)
+            address, private_key_hex, public_key_hex = node.create_wallet(initial_balance=balance)
             print(f"\n✅ New wallet created!")
             print(f"Address: {address}")
             print(f"Private key: {private_key_hex}")
             print(f"Public key: {public_key_hex}")
-            print(f"Initial balance: {blockchain.get_balance(address)} coins")
+            print(f"Initial balance: {node.get_balance(address)} coins")
 
         elif choice == '2':
             # Create transaction
-            if not blockchain.wallets:
+            if not node.wallets:
                 print("❌ No wallets available. Create a wallet first.")
                 continue
                 
             print("\n📤 Create Transaction")
             print("\nAvailable wallets:")
-            wallet_list = list(blockchain.wallets.items())
+            wallet_list = list(node.wallets.items())
             for i, (addr, _) in enumerate(wallet_list, 1):
-                balance = blockchain.get_balance(addr)
+                balance = node.get_balance(addr)
                 print(f"{i}. {addr[:16]}... (Balance: {balance} coins)")
             
             # Select sender
@@ -88,7 +104,7 @@ def main():
                 sender_idx = int(sender_choice) - 1
                 if 0 <= sender_idx < len(wallet_list):
                     sender_addr, sender_priv = wallet_list[sender_idx]
-                    sender_pub = blockchain.public_keys.get(sender_addr)
+                    sender_pub = node.public_keys.get(sender_addr)
                 else:
                     print(f"❌ Invalid wallet number. Please enter a number between 1 and {len(wallet_list)}")
                     continue
@@ -96,13 +112,13 @@ def main():
                 print(f"❌ Invalid input. Please enter a number between 1 and {len(wallet_list)}")
                 continue
                 
-            print(f"Sender: {sender_addr[:16]}... (Balance: {blockchain.get_balance(sender_addr)})")
+            print(f"Sender: {sender_addr[:16]}... (Balance: {node.get_balance(sender_addr)})")
             
             # Select recipient
             print("\nChoose recipient:")
             other_wallets = [(addr, priv) for addr, priv in wallet_list if addr != sender_addr]
             for i, (addr, _) in enumerate(other_wallets, 1):
-                balance = blockchain.get_balance(addr)
+                balance = node.get_balance(addr)
                 print(f"{i}. {addr[:16]}... (Balance: {balance} coins)")
             print(f"{len(other_wallets) + 1}. Enter external public key")
                 
@@ -119,7 +135,7 @@ def main():
                 
                 if 1 <= choice_num <= len(other_wallets):
                     recipient_addr = other_wallets[choice_num - 1][0]
-                    recipient_pub = blockchain.public_keys.get(recipient_addr)
+                    recipient_pub = node.public_keys.get(recipient_addr)
                 elif choice_num == len(other_wallets) + 1:
                     recipient_pub = input("Enter recipient public key (64 hex chars): ").strip()
                     if len(recipient_pub) != 64:
@@ -143,63 +159,55 @@ def main():
                 continue
                 
             # Check balance
-            current_balance = blockchain.get_balance(sender_addr)
+            current_balance = node.get_balance(sender_addr)
             if current_balance < amount:
                 print(f"❌ Insufficient balance. Available: {current_balance}, Required: {amount}")
                 continue
             
             # IMPORTANT: Ensure balance is available for the public key (used in transactions)
             # This is a workaround for the balance tracking inconsistency
-            if sender_pub not in blockchain.balances:
-                blockchain.balances[sender_pub] = current_balance
-            elif blockchain.balances[sender_pub] < amount:
-                blockchain.balances[sender_pub] = current_balance
+            if sender_pub not in node.balances:
+                node.balances[sender_pub] = current_balance
+            elif node.balances[sender_pub] < amount:
+                node.balances[sender_pub] = current_balance
             
             # Create and sign transaction
             tx = Transaction(sender=sender_pub, recipient=recipient_pub, amount=amount)
             tx.sign(sender_priv)
             
-            # Add to blockchain
-            if blockchain.add_transaction(tx):
+            # Add to node
+            if node.add_transaction(tx):
                 # Update balances immediately to reflect pending transaction
-                blockchain.balances[sender_addr] = blockchain.balances.get(sender_addr, 0) - amount
-                blockchain.balances[sender_pub] = blockchain.balances.get(sender_pub, 0) - amount
+                node.balances[sender_addr] = node.balances.get(sender_addr, 0) - amount
+                node.balances[sender_pub] = node.balances.get(sender_pub, 0) - amount
                 
                 print("✅ Transaction added to pending pool!")
                 print(f"Transaction hash: {tx.signature[:16]}...")
-                print(f"New available balance: {blockchain.get_balance(sender_addr)} coins")
+                print(f"New available balance: {node.get_balance(sender_addr)} coins")
                 
                 # Save the updated balances
-                blockchain.save_to_disk()
-                
-                # Ensure all P2P nodes have the updated balance before broadcasting
-                for node in blockchain.nodes:
-                    # Sync balances to P2P nodes
-                    if sender_addr in blockchain.balances:
-                        node.balances[sender_addr] = blockchain.balances[sender_addr]
-                    if sender_pub in blockchain.balances:
-                        node.balances[sender_pub] = blockchain.balances[sender_pub]
+                node.save_to_disk()
                 
                 # Broadcast to network
-                blockchain.broadcast_transaction(tx)
+                node.broadcast_transaction(tx)
             else:
                 print("❌ Transaction failed validation")
 
         elif choice == '3':
             # Mine block
-            if not blockchain.pending_transactions:
+            if not node.pending_transactions:
                 print("❌ No pending transactions to mine")
                 continue
                 
-            if not blockchain.wallets:
+            if not node.wallets:
                 print("❌ No wallets available. Create a wallet first.")
                 continue
                 
-            print(f"\n⛏️  Mine Block ({len(blockchain.pending_transactions)} pending transactions)")
+            print(f"\n⛏️  Mine Block ({len(node.pending_transactions)} pending transactions)")
             print("\nSelect miner wallet:")
-            wallet_list = list(blockchain.wallets.items())
+            wallet_list = list(node.wallets.items())
             for i, (addr, _) in enumerate(wallet_list, 1):
-                balance = blockchain.get_balance(addr)
+                balance = node.get_balance(addr)
                 print(f"{i}. {addr[:16]}... (Balance: {balance} coins)")
                 
             try:
@@ -207,7 +215,7 @@ def main():
                 miner_idx = int(miner_choice) - 1
                 if 0 <= miner_idx < len(wallet_list):
                     miner_addr, _ = wallet_list[miner_idx]
-                    miner_pub = blockchain.public_keys.get(miner_addr)
+                    miner_pub = node.public_keys.get(miner_addr)
                 else:
                     print("❌ Invalid wallet selection")
                     continue
@@ -215,35 +223,35 @@ def main():
                 print("❌ Invalid input")
                 continue
                 
-            print(f"Mining with difficulty {blockchain.difficulty}...")
+            print(f"Mining with difficulty {node.difficulty}...")
             print("⏳ This may take a while...")
             
             start_time = time.time()
-            block = blockchain.mine_block(miner_pub)
+            block = node.mine_block(miner_pub)
             end_time = time.time()
             
             if block:
                 # Sync miner reward balance between public key and wallet address
                 # Add the mining reward to the existing wallet balance instead of overwriting
                 mining_reward = 10  # Standard mining reward
-                current_miner_balance = blockchain.get_balance(miner_addr)
+                current_miner_balance = node.get_balance(miner_addr)
                 new_miner_balance = current_miner_balance + mining_reward
-                blockchain.balances[miner_addr] = new_miner_balance
+                node.balances[miner_addr] = new_miner_balance
                 
                 # Also ensure public key balance is consistent
-                blockchain.balances[miner_pub] = blockchain.get_balance(miner_pub)
+                node.balances[miner_pub] = node.get_balance(miner_pub)
                 
                 print(f"✅ Block #{block.height} mined successfully!")
                 print(f"⏱️  Mining time: {end_time - start_time:.2f} seconds")
                 print(f"🔗 Block hash: {block.hash}")
                 print(f"💰 Mining reward: {mining_reward} coins")
-                print(f"💼 Miner's new balance: {blockchain.get_balance(miner_addr)} coins")
+                print(f"💼 Miner's new balance: {node.get_balance(miner_addr)} coins")
                 
                 # Save the updated balances
-                blockchain.save_to_disk()
+                node.save_to_disk()
                 
                 # Broadcast to network
-                blockchain.broadcast_block(block)
+                node.broadcast_block(block)
                 
                 # Give P2P nodes time to process the broadcast before showing menu
                 time.sleep(0.5)
@@ -251,11 +259,11 @@ def main():
                 print("❌ Mining failed")
 
         elif choice == '4':
-            # View blockchain
-            print(f"\n🔗 Blockchain Explorer ({len(blockchain.chain)} blocks)")
+            # View node
+            print(f"\n🔗 node Explorer ({len(node.chain)} blocks)")
             print("=" * 60)
             
-            for block in blockchain.chain:
+            for block in node.chain:
                 print(f"\n📦 Block #{block.height}")
                 print(f"   Hash: {block.hash}")
                 print(f"   Previous: {block.previous_hash}")
@@ -278,15 +286,15 @@ def main():
 
         elif choice == '5':
             # Check balance
-            if not blockchain.wallets:
+            if not node.wallets:
                 print("❌ No wallets available. Create a wallet first.")
                 continue
                 
             print("\n💰 Balance Checker")
             print("\nAvailable wallets:")
-            wallet_list = list(blockchain.wallets.keys())
+            wallet_list = list(node.wallets.keys())
             for i, addr in enumerate(wallet_list, 1):
-                balance = blockchain.get_balance(addr)
+                balance = node.get_balance(addr)
                 print(f"{i}. {addr[:16]}... : {balance} coins")
             
             try:
@@ -294,8 +302,8 @@ def main():
                 wallet_idx = int(wallet_choice) - 1
                 if 0 <= wallet_idx < len(wallet_list):
                     address = wallet_list[wallet_idx]
-                    balance = blockchain.get_balance(address)
-                    confirmed_balance = blockchain.balances.get(address, 0)
+                    balance = node.get_balance(address)
+                    confirmed_balance = node.balances.get(address, 0)
                     
                     print(f"\n📊 Wallet Details:")
                     print(f"Address: {address}")
@@ -311,17 +319,17 @@ def main():
 
         elif choice == '6':
             # View all wallets
-            if not blockchain.wallets:
+            if not node.wallets:
                 print("❌ No wallets available.")
                 continue
                 
-            print(f"\n👛 All Wallets ({len(blockchain.wallets)} total)")
+            print(f"\n👛 All Wallets ({len(node.wallets)} total)")
             print("=" * 80)
             
-            for i, (addr, priv_key) in enumerate(blockchain.wallets.items(), 1):
-                balance = blockchain.get_balance(addr)
-                confirmed_balance = blockchain.balances.get(addr, 0)
-                pub_key = blockchain.public_keys.get(addr, "Unknown")
+            for i, (addr, priv_key) in enumerate(node.wallets.items(), 1):
+                balance = node.get_balance(addr)
+                confirmed_balance = node.balances.get(addr, 0)
+                pub_key = node.public_keys.get(addr, "Unknown")
                 
                 print(f"\n🏦 Wallet #{i}")
                 print(f"   Address: {addr}")
@@ -335,11 +343,11 @@ def main():
             # Add funds (testing)
             print("\n💵 Add Test Funds")
             
-            if blockchain.wallets:
+            if node.wallets:
                 print("\nAvailable wallets:")
-                wallet_list = list(blockchain.wallets.keys())
+                wallet_list = list(node.wallets.keys())
                 for i, addr in enumerate(wallet_list, 1):
-                    balance = blockchain.get_balance(addr)
+                    balance = node.get_balance(addr)
                     print(f"{i}. {addr[:16]}... : {balance} coins")
                 
                 try:
@@ -369,30 +377,29 @@ def main():
                 continue
                 
             # Add funds
-            old_balance = blockchain.balances.get(address, 0)
-            blockchain.balances[address] = old_balance + amount
+            old_balance = node.balances.get(address, 0)
+            node.balances[address] = old_balance + amount
             
             # Also add to public key if this is a known wallet
-            pub_key = blockchain.public_keys.get(address)
+            pub_key = node.public_keys.get(address)
             if pub_key:
-                blockchain.balances[pub_key] = blockchain.balances.get(pub_key, 0) + amount
+                node.balances[pub_key] = node.balances.get(pub_key, 0) + amount
             
-            blockchain.save_to_disk()
+            node.save_to_disk()
             
             print(f"✅ Added {amount} coins to {address[:16]}...")
-            print(f"💰 New balance: {blockchain.get_balance(address)} coins")
+            print(f"💰 New balance: {node.get_balance(address)} coins")
 
         elif choice == '8':
             # Run tests
-            TestBlockchain.run_tests()
+            pass
 
         elif choice == '9':
-            # Exit
-            print("💾 Saving blockchain state...")
-            blockchain.save_to_disk()
-            print("👋 Thank you for using the Blockchain Demo!")
-            print("💫 Blockchain saved successfully. Goodbye!")
-            break
+            print(f"\n📡 Connected Peers: {list(node.peers) if node.peers else 'None'}")
+
+        elif choice == '10':
+            print("\n🔄 Manually triggering chain synchronization...")
+            node.sync_chain()
 
         else:
             print("❌ Invalid choice. Please enter a number between 1-9.")
