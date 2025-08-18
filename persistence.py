@@ -13,13 +13,20 @@ class Persistence:
             wallets_hex = self.wallets.copy()
             public_keys_hex = self.public_keys.copy()
 
+            # Include initial wallet balances if available
+            save_data = {
+                'chain': [block.to_dict() for block in self.chain],
+                'balances': self.balances,
+                'wallets': wallets_hex,
+                'public_keys': public_keys_hex
+            }
+            
+            # Save initial wallet balances if they exist
+            if hasattr(self, 'initial_wallet_balances'):
+                save_data['initial_wallet_balances'] = self.initial_wallet_balances
+
             with open('blockchain.json', 'w') as f:
-                json.dump({
-                    'chain': [block.to_dict() for block in self.chain],
-                    'balances': self.balances,
-                    'wallets': wallets_hex,
-                    'public_keys': public_keys_hex
-                }, f)
+                json.dump(save_data, f)
             logging.info("Blockchain state saved to disk")
         except Exception as e:
             logging.error(f"Failed to save blockchain state: {e}")
@@ -46,6 +53,13 @@ class Persistence:
                         )
                         self.chain.append(block)
                     self.balances = data.get('balances', {})
+                    
+                    # Load initial wallet balances if available
+                    if 'initial_wallet_balances' in data:
+                        self.initial_wallet_balances = data['initial_wallet_balances']
+                    else:
+                        self.initial_wallet_balances = {}
+                    
                     # Load wallets and public keys if available
                     if 'wallets' in data and 'public_keys' in data:
                         self.wallets = {}

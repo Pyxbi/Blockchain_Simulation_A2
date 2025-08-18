@@ -7,7 +7,6 @@ from flask import Flask, request, jsonify
 from flask_socketio import SocketIO
 from models import Block
 from transaction import Transaction
-import socketio
 
 class P2PNode:
     def __init__(self, host, port):

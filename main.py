@@ -31,7 +31,7 @@ def main():
     # This is crucial! It runs the network listener without blocking the CLI.
     server_thread = threading.Thread(target=node.run, daemon=True)
     server_thread.start()
-    print(f"✅ Node server running in background at http://{host}:{port}")
+    print(f" Node server running in background at http://{host}:{port}")
 
     # --- 4. Connect to Peers ---
     for peer_p in peer_ports:
@@ -40,7 +40,7 @@ def main():
     
     # Give the server a moment to start and connect
     time.sleep(2)
-    print("✅ node CLI is ready!")
+    print(" node CLI is ready!")
 
     # --- 5. Run Your Existing CLI ---
     # The `node` variable is now `node`.
@@ -72,7 +72,7 @@ def main():
                 balance = 100.0
                 
             address, private_key_hex, public_key_hex = node.create_wallet(initial_balance=balance)
-            print(f"\n✅ New wallet created!")
+            print(f"\n New wallet created!")
             print(f"Address: {address}")
             print(f"Private key: {private_key_hex}")
             print(f"Public key: {public_key_hex}")
@@ -81,10 +81,10 @@ def main():
         elif choice == '2':
             # Create transaction
             if not node.wallets:
-                print("❌ No wallets available. Create a wallet first.")
+                print("No wallets available. Create a wallet first.")
                 continue
                 
-            print("\n📤 Create Transaction")
+            print("\nCreate Transaction")
             print("\nAvailable wallets:")
             wallet_list = list(node.wallets.items())
             for i, (addr, _) in enumerate(wallet_list, 1):
@@ -97,7 +97,7 @@ def main():
                 
                 # Check if user entered a wallet address instead of number
                 if len(sender_choice) == 64:  # Looks like a hex address
-                    print("💡 Tip: Please enter the wallet NUMBER (1, 2, 3...), not the address")
+                    print("Tip: Please enter the wallet NUMBER (1, 2, 3...), not the address")
                     print("   Example: Enter '1' to select the first wallet")
                     continue
                 
@@ -106,10 +106,10 @@ def main():
                     sender_addr, sender_priv = wallet_list[sender_idx]
                     sender_pub = node.public_keys.get(sender_addr)
                 else:
-                    print(f"❌ Invalid wallet number. Please enter a number between 1 and {len(wallet_list)}")
+                    print(f" Invalid wallet number. Please enter a number between 1 and {len(wallet_list)}")
                     continue
             except ValueError:
-                print(f"❌ Invalid input. Please enter a number between 1 and {len(wallet_list)}")
+                print(f" Invalid input. Please enter a number between 1 and {len(wallet_list)}")
                 continue
                 
             print(f"Sender: {sender_addr[:16]}... (Balance: {node.get_balance(sender_addr)})")
@@ -127,7 +127,7 @@ def main():
                 
                 # Check if user entered a wallet address instead of number
                 if len(recipient_choice) == 64:  # Looks like a hex address or public key
-                    print("💡 Tip: Please enter the recipient NUMBER, or choose option {} to enter a custom public key".format(len(other_wallets) + 1))
+                    print("Tip: Please enter the recipient NUMBER, or choose option {} to enter a custom public key".format(len(other_wallets) + 1))
                     print("   Example: Enter '1' to select the first wallet, or '{}' to enter custom key".format(len(other_wallets) + 1))
                     continue
                 
@@ -139,29 +139,30 @@ def main():
                 elif choice_num == len(other_wallets) + 1:
                     recipient_pub = input("Enter recipient public key (64 hex chars): ").strip()
                     if len(recipient_pub) != 64:
-                        print("❌ Invalid public key format. Must be exactly 64 hexadecimal characters")
+                        print(" Invalid public key format. Must be exactly 64 hexadecimal characters")
                         continue
+                    recipient_addr = recipient_pub  # Fix: set recipient_addr for custom public key
                 else:
-                    print(f"❌ Invalid choice. Please enter a number between 1 and {len(other_wallets) + 1}")
+                    print(f" Invalid choice. Please enter a number between 1 and {len(other_wallets) + 1}")
                     continue
             except ValueError:
-                print(f"❌ Invalid input. Please enter a number between 1 and {len(other_wallets) + 1}")
+                print(f" Invalid input. Please enter a number between 1 and {len(other_wallets) + 1}")
                 continue
             
             # Get amount
             try:
                 amount = float(input("Enter amount to send: "))
                 if amount <= 0:
-                    print("❌ Amount must be positive")
+                    print(" Amount must be positive")
                     continue
             except ValueError:
-                print("❌ Invalid amount")
+                print(" Invalid amount")
                 continue
                 
             # Check balance
             current_balance = node.get_balance(sender_addr)
             if current_balance < amount:
-                print(f"❌ Insufficient balance. Available: {current_balance}, Required: {amount}")
+                print(f" Insufficient balance. Available: {current_balance}, Required: {amount}")
                 continue
             
             # IMPORTANT: Ensure balance is available for the public key (used in transactions)
@@ -181,7 +182,7 @@ def main():
                 node.balances[sender_addr] = node.balances.get(sender_addr, 0) - amount
                 node.balances[sender_pub] = node.balances.get(sender_pub, 0) - amount
                 
-                print("✅ Transaction added to pending pool!")
+                print(" Transaction added to pending pool!")
                 print(f"Transaction hash: {tx.signature[:16]}...")
                 print(f"New available balance: {node.get_balance(sender_addr)} coins")
                 
@@ -191,7 +192,7 @@ def main():
                 # Broadcast to network
                 node.broadcast_transaction(tx)
             else:
-                print("❌ Transaction failed validation")
+                print(" Transaction failed validation")
 
         elif choice == '3':
             # Mine block
@@ -204,6 +205,12 @@ def main():
                 continue
                 
             print(f"\n⛏️  Mine Block ({len(node.pending_transactions)} pending transactions)")
+            
+            # Show current mempool status
+            print("\n📋 Current Mempool:")
+            for i, tx in enumerate(node.pending_transactions, 1):
+                print(f"   {i}. {tx.sender[:16]}... → {tx.recipient[:16]}... : {tx.amount} coins")
+            
             print("\nSelect miner wallet:")
             wallet_list = list(node.wallets.items())
             for i, (addr, _) in enumerate(wallet_list, 1):
@@ -215,7 +222,7 @@ def main():
                 miner_idx = int(miner_choice) - 1
                 if 0 <= miner_idx < len(wallet_list):
                     miner_addr, _ = wallet_list[miner_idx]
-                    miner_pub = node.public_keys.get(miner_addr)
+                    miner_pub = node.public_keys.get(miner_addr)  # Get the public key for mining reward
                 else:
                     print("❌ Invalid wallet selection")
                     continue
@@ -225,25 +232,23 @@ def main():
                 
             print(f"Mining with difficulty {node.difficulty}...")
             print("⏳ This may take a while...")
+            print("📝 Note: Exactly 1 transaction will be mined per block")
             
             start_time = time.time()
-            block = node.mine_block(miner_pub)
+            block = node.mine_block(miner_pub)  # Pass public key, not address
             end_time = time.time()
             
             if block:
-                # Sync miner reward balance between public key and wallet address
-                # Add the mining reward to the existing wallet balance instead of overwriting
-                mining_reward = 10  # Standard mining reward
-                current_miner_balance = node.get_balance(miner_addr)
-                new_miner_balance = current_miner_balance + mining_reward
-                node.balances[miner_addr] = new_miner_balance
-                
-                # Also ensure public key balance is consistent
-                node.balances[miner_pub] = node.get_balance(miner_pub)
+                # Count user transactions (excluding mining reward)
+                user_transactions = [tx for tx in block.transactions if tx.sender != "COINBASE"]
+                mining_reward_tx = [tx for tx in block.transactions if tx.sender == "COINBASE"]
+                mining_reward = mining_reward_tx[0].amount if mining_reward_tx else 0
                 
                 print(f"✅ Block #{block.height} mined successfully!")
                 print(f"⏱️  Mining time: {end_time - start_time:.2f} seconds")
                 print(f"🔗 Block hash: {block.hash}")
+                print(f"📦 Transactions mined: {len(user_transactions)}")
+                print(f"📋 Remaining in mempool: {len(node.pending_transactions)}")
                 print(f"💰 Mining reward: {mining_reward} coins")
                 print(f"💼 Miner's new balance: {node.get_balance(miner_addr)} coins")
                 
@@ -260,11 +265,11 @@ def main():
 
         elif choice == '4':
             # View node
-            print(f"\n🔗 node Explorer ({len(node.chain)} blocks)")
+            print(f"\nNode Explorer ({len(node.chain)} blocks)")
             print("=" * 60)
             
             for block in node.chain:
-                print(f"\n📦 Block #{block.height}")
+                print(f"\nBlock #{block.height}")
                 print(f"   Hash: {block.hash}")
                 print(f"   Previous: {block.previous_hash}")
                 print(f"   Timestamp: {time.ctime(block.timestamp)}")
@@ -277,9 +282,9 @@ def main():
                     print(f"   Transactions ({len(block.transactions)}):")
                     for i, tx in enumerate(block.transactions, 1):
                         if hasattr(tx, 'sender') and tx.sender == "COINBASE":
-                            print(f"     {i}. 💰 COINBASE → {tx.recipient[:16]}... : {tx.amount} coins (reward)")
+                            print(f"     {i}.COINBASE → {tx.recipient[:16]}... : {tx.amount} coins (reward)")
                         else:
-                            print(f"     {i}. 💸 {tx.sender[:16]}... → {tx.recipient[:16]}... : {tx.amount} coins")
+                            print(f"     {i}. {tx.sender[:16]}... → {tx.recipient[:16]}... : {tx.amount} coins")
                 else:
                     print("   Transactions: None (Genesis block)")
                 print("-" * 60)
@@ -287,10 +292,10 @@ def main():
         elif choice == '5':
             # Check balance
             if not node.wallets:
-                print("❌ No wallets available. Create a wallet first.")
+                print(" No wallets available. Create a wallet first.")
                 continue
                 
-            print("\n💰 Balance Checker")
+            print("\nBalance Checker")
             print("\nAvailable wallets:")
             wallet_list = list(node.wallets.keys())
             for i, addr in enumerate(wallet_list, 1):
@@ -305,25 +310,25 @@ def main():
                     balance = node.get_balance(address)
                     confirmed_balance = node.balances.get(address, 0)
                     
-                    print(f"\n📊 Wallet Details:")
+                    print(f"\nWallet Details:")
                     print(f"Address: {address}")
                     print(f"Confirmed Balance: {confirmed_balance} coins")
                     print(f"Available Balance: {balance} coins")
                     
                     if balance != confirmed_balance:
-                        print(f"⏳ Pending: {confirmed_balance - balance} coins")
+                        print(f"Pending: {confirmed_balance - balance} coins")
                 else:
-                    print("❌ Invalid wallet selection")
+                    print(" Invalid wallet selection")
             except ValueError:
-                print("❌ Invalid input")
+                print(" Invalid input")
 
         elif choice == '6':
             # View all wallets
             if not node.wallets:
-                print("❌ No wallets available.")
+                print(" No wallets available.")
                 continue
                 
-            print(f"\n👛 All Wallets ({len(node.wallets)} total)")
+            print(f"\nAll Wallets ({len(node.wallets)} total)")
             print("=" * 80)
             
             for i, (addr, priv_key) in enumerate(node.wallets.items(), 1):
@@ -331,7 +336,7 @@ def main():
                 confirmed_balance = node.balances.get(addr, 0)
                 pub_key = node.public_keys.get(addr, "Unknown")
                 
-                print(f"\n🏦 Wallet #{i}")
+                print(f"\nWallet #{i}")
                 print(f"   Address: {addr}")
                 print(f"   Public Key: {pub_key}")
                 print(f"   Private Key: {priv_key}")
@@ -341,7 +346,7 @@ def main():
 
         elif choice == '7':
             # Add funds (testing)
-            print("\n💵 Add Test Funds")
+            print("\nAdd Test Funds")
             
             if node.wallets:
                 print("\nAvailable wallets:")
@@ -356,24 +361,24 @@ def main():
                     if 0 <= wallet_idx < len(wallet_list):
                         address = wallet_list[wallet_idx]
                     else:
-                        print("❌ Invalid wallet selection")
+                        print(" Invalid wallet selection")
                         continue
                 except ValueError:
-                    print("❌ Invalid input")
+                    print(" Invalid input")
                     continue
             else:
                 address = input("Enter wallet address to fund: ").strip()
                 if len(address) != 64:
-                    print("❌ Invalid address format")
+                    print(" Invalid address format")
                     continue
             
             try:
                 amount = float(input("Enter amount to add: "))
                 if amount <= 0:
-                    print("❌ Amount must be positive")
+                    print(" Amount must be positive")
                     continue
             except ValueError:
-                print("❌ Invalid amount")
+                print(" Invalid amount")
                 continue
                 
             # Add funds
@@ -387,29 +392,34 @@ def main():
             
             node.save_to_disk()
             
-            print(f"✅ Added {amount} coins to {address[:16]}...")
-            print(f"💰 New balance: {node.get_balance(address)} coins")
+            print(f" Added {amount} coins to {address[:16]}...")
+            print(f"New balance: {node.get_balance(address)} coins")
 
         elif choice == '8':
-            # Run tests
-            pass
+            # for testing demo of Immutability in section 2 in report
+            is_valid_chain, message = node.is_valid_chain()
+            if is_valid_chain:
+                print("Blockchain is valid!")
+            else:
+               print("Blockchain is invalid:", message)
+            print("\nRunning basic tests...")
 
         elif choice == '9':
             print(f"\n📡 Connected Peers: {list(node.peers) if node.peers else 'None'}")
 
         elif choice == '10':
-            print("\n🔄 Manually triggering chain synchronization...")
+            print("\nManually triggering chain synchronization...")
             node.sync_chain()
 
         else:
-            print("❌ Invalid choice. Please enter a number between 1-9.")
+            print(" Invalid choice. Please enter a number between 1-9.")
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n\n🛑 Interrupted by user. Exiting gracefully...")
+        print("\n\nInterrupted by user. Exiting gracefully...")
     except Exception as e:
-        print(f"\n💥 Unexpected error: {e}")
+        print(f"\nUnexpected error: {e}")
         logging.error(f"Unexpected error in main: {e}", exc_info=True)

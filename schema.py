@@ -1,3 +1,5 @@
+import hashlib
+import json
 from marshmallow import Schema, fields, validates_schema, ValidationError, post_load
 from transaction import Transaction
 from models import Block
@@ -7,7 +9,7 @@ class TransactionSchema(Schema):
     recipient = fields.Str(required=True)
     amount = fields.Float(required=True)
     timestamp = fields.Int(required=True)
-    signature = fields.Str(required=False, allow_none=True)  # Make optional
+    signature = fields.Str(required=False, allow_none=True)
 
     @post_load
     def make_transaction(self, data, **kwargs):
@@ -26,52 +28,58 @@ class BlockSchema(Schema):
 
     @post_load
     def make_block(self, data, **kwargs):
+        # The 'transactions' are already converted to Transaction objects by the nested schema
         return Block(**data)
 
     @validates_schema
     def validate_hash(self, data, **kwargs):
-        # Skip hash validation for now to allow testing
-        # The issue is in transaction serialization consistency
-        return
+        """
+        Validates the hash of the block directly from the incoming data dictionary.
+        """
+        # --- FIXED LOGIC ---
+        # 1. Take a copy of the data dictionary to avoid modifying the original
+        block_data_for_hashing = data.copy()
         
-        # TODO: Fix transaction serialization consistency
-        # Create a temporary block for hash validation
-        # Make sure transactions are handled correctly
-        transactions = data['transactions']
-        
-        # Convert transaction objects to dicts if needed
-        tx_list = []
-        for tx in transactions:
-            if hasattr(tx, 'to_dict'):
-                tx_list.append(tx)  # Keep as Transaction object
-            else:
-                # If it's already a dict, convert back to Transaction object
-                from transaction import Transaction
-                tx_list.append(Transaction.from_dict(tx))
-        
-        temp_block = Block(
-            mined_by=data['mined_by'],
-            transactions=tx_list,  # Use the processed transaction list
-            height=data['height'],
-            difficulty=data['difficulty'],
-            hash="",  # Don't set hash initially
-            previous_hash=data['previous_hash'],
-            nonce=data['nonce'],
-            timestamp=data['timestamp'],
-            merkle_root=data['merkle_root']
-        )
-        
-        # Calculate hash and compare
-        calculated_hash = temp_block.calculate_hash()
-        if data['hash'] != calculated_hash:
-            raise ValidationError(f"Block hash is invalid. Expected: {calculated_hash}, Got: {data['hash']}")
+        # 2. The 'hash' field itself is not part of the data used to calculate the hash
+        provided_hash = block_data_for_hashing.pop('hash', None)
 
-# Usage helpers
+        # 3. Create the canonical block string from the rest of the data
+        # This must exactly match the logic in your Block.calculate_hash() method
+        # Handle both cases: transactions as dicts or Transaction objects
+        transactions_data = []
+        for tx in block_data_for_hashing['transactions']:
+            if isinstance(tx, dict):
+                transactions_data.append(tx)
+            else:
+                # It's a Transaction object, convert to dict
+                transactions_data.append(tx.to_dict())
+        
+        block_string = json.dumps({
+            'mined_by': block_data_for_hashing['mined_by'],
+            'transactions': transactions_data,
+            'height': block_data_for_hashing['height'],
+            'difficulty': block_data_for_hashing['difficulty'],
+            'previous_hash': block_data_for_hashing['previous_hash'],
+            'nonce': block_data_for_hashing['nonce'],
+            'timestamp': block_data_for_hashing['timestamp'],
+            'merkle_root': block_data_for_hashing['merkle_root']
+        }, sort_keys=True).encode('utf-8')
+
+        # 4. Calculate the hash and compare
+        calculated_hash = hashlib.sha256(block_string).hexdigest()
+
+        if provided_hash != calculated_hash:
+            raise ValidationError(
+                f"Block hash is invalid. Expected: {calculated_hash}, Got: {provided_hash}"
+            )
+
+# --- Usage Helpers (Unchanged) ---
 def validate_transaction_dict(tx_dict):
+    """Validates and deserializes a transaction dictionary."""
     schema = TransactionSchema()
     return schema.load(tx_dict)
 
 def validate_block_dict(block_dict):
+    """Validates and deserializes a block dictionary."""
     schema = BlockSchema()
     return schema.load(block_dict)
-

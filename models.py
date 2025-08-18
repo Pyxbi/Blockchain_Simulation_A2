@@ -3,6 +3,7 @@ import json
 from transaction import Transaction
 
 class Block:
+    """Represents a single block in the blockchain."""
     def __init__(
         self,
         mined_by,
@@ -18,12 +19,12 @@ class Block:
         self.mined_by = mined_by
         self.transactions = transactions  # List of transaction dicts or Transaction objects
         self.height = height  # Also known as index
-        self.difficulty = difficulty
+        self.difficulty = difficulty # Mining difficulty for this block
         self.hash = hash
         self.previous_hash = previous_hash
-        self.nonce = nonce
+        self.nonce = nonce # Nonce for proof-of-work
         self.timestamp = timestamp
-        self.merkle_root = merkle_root or self.calculate_merkle_root()
+        self.merkle_root = merkle_root or self.calculate_merkle_root() 
 
     def calculate_merkle_root(self):
         """
@@ -58,7 +59,8 @@ class Block:
             'nonce': self.nonce,
             'timestamp': self.timestamp,
             'merkle_root': self.merkle_root
-        }, sort_keys=True)
+        }, sort_keys=True) # Convert to JSON string with sorted keys
+        # Calculate the SHA-256 hash of the block string
         return hashlib.sha256(block_string.encode()).hexdigest()
 
     def to_dict(self):

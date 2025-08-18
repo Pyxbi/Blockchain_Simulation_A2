@@ -7,7 +7,7 @@ from models import Block
 from transaction import Transaction
 from consensus import Consensus
 from wallet import create_wallet as wallet_create_wallet
-from schema import validate_transaction_dict, validate_block_dict
+from schema import validate_transaction_dict
 
 class Blockchain(P2PNode, Persistence):
     """
@@ -27,15 +27,32 @@ class Blockchain(P2PNode, Persistence):
         self.balances = {}
         self.wallets = {}
         self.public_keys = {}
+        self.initial_balance_txs = []  # Store initial balance transactions for genesis
 
         self.load_from_disk()
         if not self.chain:
             self.create_genesis_block()
 
+    def create_wallet(self, initial_balance: float = 100.0):
+        address, private_key_hex, public_key_hex = wallet_create_wallet()
+        self.wallets[address] = private_key_hex
+        self.public_keys[address] = public_key_hex
+        
+        # Store the initial balance separately to never lose it
+        if not hasattr(self, 'initial_wallet_balances'):
+            self.initial_wallet_balances = {}
+        self.initial_wallet_balances[address] = initial_balance
+        
+        # Set current balance
+        self.balances[address] = initial_balance
+        logging.info(f"Created wallet {address[:10]}... with initial balance {initial_balance}")
+            
+        return address, private_key_hex, public_key_hex
+
     def create_genesis_block(self):
         genesis_block = Block(
             mined_by="genesis",
-            transactions=[],
+            transactions=self.initial_balance_txs,
             height=0,
             difficulty=self.difficulty,
             hash="",
@@ -45,6 +62,10 @@ class Blockchain(P2PNode, Persistence):
         )
         genesis_block.hash = genesis_block.calculate_hash()
         self.chain.append(genesis_block)
+        
+        # Rebuild balances to include initial wallet balances from genesis block
+        self.rebuild_balances()
+        
         self.save_to_disk()
         logging.info("Genesis block created")
 
@@ -52,8 +73,23 @@ class Blockchain(P2PNode, Persistence):
         return self.chain[-1]
 
     def get_balance(self, address):
-        """Get the current balance for a given address."""
-        return self.balances.get(address, 0)
+        """Get the current balance for a given address, checking both address and public key."""
+        # First check if the address itself has a balance
+        if address in self.balances:
+            return self.balances[address]
+        
+        # If not found, check if this address has a corresponding public key with balance
+        if address in self.public_keys:
+            public_key = self.public_keys[address]
+            if public_key in self.balances:
+                return self.balances[public_key]
+        
+        # If the input is a public key, check if it has a corresponding address
+        for addr, pub_key in self.public_keys.items():
+            if pub_key == address and addr in self.balances:
+                return self.balances[addr]
+        
+        return 0
 
     def add_transaction(self, tx: Transaction):
         """Adds a transaction to the pending pool after full validation."""
@@ -61,11 +97,19 @@ class Blockchain(P2PNode, Persistence):
             validate_transaction_dict(tx.to_dict())
             if not tx.verify():
                 raise ValueError("Transaction signature invalid")
-            if self.get_balance(tx.sender) < tx.amount:
+            
+            # Convert sender public key to address for balance checking
+            pubkey_to_address = {pub: addr for addr, pub in self.public_keys.items()}
+            sender_addr = pubkey_to_address.get(tx.sender, tx.sender)
+            
+            if self.get_balance(sender_addr) < tx.amount:
                 raise ValueError("Insufficient balance")
-            # Double spend check in pending pool
-            pending_spend = sum(t.amount for t in self.pending_transactions if t.sender == tx.sender)
-            if self.get_balance(tx.sender) - pending_spend < tx.amount:
+            
+            # Double spend check in pending pool - check by sender address
+            pending_spend = sum(t.amount for t in self.pending_transactions 
+                              if pubkey_to_address.get(t.sender, t.sender) == sender_addr)
+            
+            if self.get_balance(sender_addr) - pending_spend < tx.amount:
                 raise ValueError("Double-spend attempt detected in pending pool")
 
             self.pending_transactions.append(tx)
@@ -75,33 +119,85 @@ class Blockchain(P2PNode, Persistence):
             logging.warning(f"Transaction failed validation: {e}")
             return False
 
-    def mine_block(self, miner_address):
-        """Mines a new block, rewards the miner, and updates the chain."""
+    def mine_block(self, miner_identifier):
+        """Mines a new block with exactly 1 transaction, rewards the miner, and updates the chain."""
         if not self.pending_transactions:
             logging.info("No transactions to mine.")
             return None
 
+        # Convert miner identifier to address if it's a public key
+        pubkey_to_address = {pub: addr for addr, pub in self.public_keys.items()}
+        miner_address = pubkey_to_address.get(miner_identifier, miner_identifier)
+        
+        # Ensure we have a valid wallet address for the miner
+        if miner_address not in self.wallets:
+            logging.error(f"Invalid miner address: {miner_address}")
+            return None
+
         last_block = self.get_latest_block()
+        # --- SELECT EXACTLY 1 TRANSACTION ---
+        selected_transaction = self._select_one_transaction_for_block()
+        if not selected_transaction:
+            logging.info("No valid transaction available for mining.")
+            return None
+
+        # Only pass the user transaction(s) to Consensus; reward is handled there
+        transactions_to_mine = [selected_transaction]
+
         block = Consensus.proof_of_work(
             last_block=last_block,
-            transactions=self.pending_transactions,
-            miner_address=miner_address,
+            transactions=transactions_to_mine,
+            miner_address=miner_address,  # Always pass the wallet address
             difficulty=self.difficulty
         )
 
-        try:
-            validate_block_dict(block.to_dict())
-            self.chain.append(block)
-            # Update balances and clear pending transactions
-            self.rebuild_balances()
-            self.pending_transactions = []
-            self.difficulty = Consensus.adjust_difficulty(self.chain)
-            self.save_to_disk()
-            logging.info(f"Block #{block.height} mined successfully by {miner_address[:10]}...")
-            return block
-        except Exception as e:
-            logging.error(f"Mined block failed validation: {e}")
-            return None
+        # Add the valid block to the chain
+        self.chain.append(block)
+
+        # --- PRECISE MEMPOOL MANAGEMENT ---
+        # Remove ONLY the transaction that was actually mined
+        mined_user_transactions = [tx for tx in block.transactions if tx.sender != "COINBASE"]
+        if mined_user_transactions:
+            mined_tx = mined_user_transactions[0]  # Should be exactly 1
+            self.pending_transactions = [
+                tx for tx in self.pending_transactions 
+                if tx.signature != mined_tx.signature
+            ]
+            logging.info(f"Removed transaction {mined_tx.signature[:8]}... from mempool. {len(self.pending_transactions)} transactions remain.")
+
+        # --- REBUILD BALANCES TO INCLUDE MINING REWARD ---
+        self.rebuild_balances()
+
+        # Adjust difficulty for the next block
+        self.difficulty = Consensus.adjust_difficulty(self.chain)
+        self.save_to_disk()
+        logging.info(f"Block #{block.height} mined successfully with 1 transaction by {miner_address[:10]}...")
+        return block
+
+    def _select_one_transaction_for_block(self):
+        """
+        Select exactly ONE valid transaction for the next block.
+        Uses FIFO (First-In-First-Out) selection - oldest transaction first.
+        """
+        # Sort transactions by timestamp (oldest first)
+        sorted_transactions = sorted(self.pending_transactions, key=lambda tx: tx.timestamp)
+        
+        # Build a reverse mapping from public key hex to address
+        pubkey_to_address = {pub: addr for addr, pub in self.public_keys.items()}
+        
+        for tx in sorted_transactions:
+            # Check if transaction is still valid - convert sender public key to address
+            sender_addr = pubkey_to_address.get(tx.sender, tx.sender)
+            sender_balance = self.balances.get(sender_addr, 0)
+            
+            if sender_balance >= tx.amount and tx.verify():
+                logging.info(f"Selected transaction {tx.signature[:8]}... for mining (amount: {tx.amount}, sender balance: {sender_balance})")
+                return tx
+            else:
+                logging.warning(f"Skipping invalid transaction {tx.signature[:8]}... (balance: {sender_balance}, required: {tx.amount})")
+        
+        # No valid transactions found
+        return None
 
     def is_valid_block(self, block: Block, previous_block: Block = None):
         if previous_block is None:
@@ -123,34 +219,22 @@ class Blockchain(P2PNode, Persistence):
     def is_valid_chain(self, chain=None):
         chain = chain or self.chain
         if not chain:
-            return False
+            return False, "Empty chain"
         if chain[0].height != 0 or chain[0].previous_hash != "0":
-            logging.error("Invalid genesis block")
-            return False
+            return False, "Invalid genesis block"
         for i in range(1, len(chain)):
             current = chain[i]
             previous = chain[i-1]
             if current.hash != current.calculate_hash():
-                logging.error(f"Invalid hash in block #{current.height}")
-                return False
+                return False, f"Invalid hash in block #{current.height}"
             if current.previous_hash != previous.hash:
-                logging.error(f"Chain broken at block #{current.height}")
-                return False
+                return False, f"Chain broken at block #{current.height}"
             if not current.hash.startswith("0" * current.difficulty):
-                logging.error(f"Difficulty not met in block #{current.height}")
-                return False
+                return False, f"Difficulty not met in block #{current.height}"
             if current.height != previous.height + 1:
-                logging.error(f"Invalid height sequence at block #{current.height}")
-                return False
-        return True
+                return False, f"Invalid height sequence at block #{current.height}"
+        return True, "OK"
 
-    def create_wallet(self, initial_balance: float = 100.0):
-        address, private_key_hex, public_key_hex = wallet_create_wallet()
-        self.wallets[address] = private_key_hex
-        self.public_keys[address] = public_key_hex
-        if initial_balance > 0:
-            self.balances[address] = initial_balance
-        return address, private_key_hex, public_key_hex
 
     def sync_chain(self):
         """Synchronizes the chain by fetching and validating chains from peers."""
@@ -178,9 +262,88 @@ class Blockchain(P2PNode, Persistence):
             logging.info(f"Chain synchronized to length {len(self.chain)}")
 
     def rebuild_balances(self):
+        """Rebuild balances from the entire blockchain, handling both addresses and public keys."""
+        logging.info("Starting balance rebuild...")
+        
+        # Build mapping dictionaries for both directions
+        pubkey_to_address = {pub: addr for addr, pub in self.public_keys.items()}
+        address_to_pubkey = {addr: pub for addr, pub in self.public_keys.items()}
+        logging.info(f"Address to public key mapping: {len(self.public_keys)} entries")
+        
+        # Initialize all known wallet addresses with their original initial balances
         self.balances.clear()
+        
+        # Ensure we have initial_wallet_balances attribute
+        if not hasattr(self, 'initial_wallet_balances'):
+            self.initial_wallet_balances = {}
+            # For existing wallets, assume 100 coins initial balance
+            for address in self.wallets.keys():
+                self.initial_wallet_balances[address] = 100.0
+        
+        for address in self.wallets.keys():
+            initial_balance = self.initial_wallet_balances.get(address, 100.0)
+            self.balances[address] = initial_balance
+            logging.info(f"  Initialized {address[:8]}... with initial balance {initial_balance}")
+        
+        # Process all transactions in the blockchain
         for block in self.chain:
+            logging.info(f"Processing block #{block.height} with {len(block.transactions)} transactions")
             for tx in block.transactions:
+                
+                # Handle sender (debit) - only for non-COINBASE transactions
                 if tx.sender != "COINBASE":
-                    self.balances[tx.sender] = self.balances.get(tx.sender, 0) - tx.amount
-                self.balances[tx.recipient] = self.balances.get(tx.recipient, 0) + tx.amount
+                    # Convert sender (usually public key) to address
+                    sender_addr = pubkey_to_address.get(tx.sender, tx.sender)
+                    if sender_addr in self.balances:
+                        old_balance = self.balances[sender_addr]
+                        self.balances[sender_addr] = old_balance - tx.amount
+                        logging.info(f"  Deducted {tx.amount} from {sender_addr[:8]}... (was {old_balance}, now {self.balances[sender_addr]})")
+                    else:
+                        logging.warning(f"  Unknown sender {sender_addr[:8]}... for debit of {tx.amount}")
+                
+                # Handle recipient (credit) - for all transactions
+                recipient_addr = None
+                
+                if tx.sender == "COINBASE":
+                    # For COINBASE, recipient should be an address (mining reward)
+                    if tx.recipient in self.wallets:
+                        # Recipient is an address
+                        recipient_addr = tx.recipient
+                        logging.info(f"  COINBASE recipient is wallet address: {recipient_addr[:8]}...")
+                    elif tx.recipient in pubkey_to_address:
+                        # Recipient is a public key, convert to address
+                        recipient_addr = pubkey_to_address[tx.recipient]
+                        logging.info(f"  COINBASE recipient converted from pubkey to address: {recipient_addr[:8]}...")
+                    else:
+                        # Unknown recipient - might be external address
+                        recipient_addr = tx.recipient
+                        logging.warning(f"  Unknown COINBASE recipient {tx.recipient[:8]}...")
+                else:
+                    # For regular transactions, recipient is usually a public key
+                    if tx.recipient in pubkey_to_address:
+                        # Recipient is a public key, convert to address
+                        recipient_addr = pubkey_to_address[tx.recipient]
+                        logging.info(f"  Regular transaction recipient converted from pubkey to address: {recipient_addr[:8]}...")
+                    elif tx.recipient in self.wallets:
+                        # Recipient is an address
+                        recipient_addr = tx.recipient
+                        logging.info(f"  Regular transaction recipient is wallet address: {recipient_addr[:8]}...")
+                    else:
+                        # Unknown recipient
+                        recipient_addr = tx.recipient
+                        logging.warning(f"  Unknown transaction recipient {tx.recipient[:8]}...")
+                
+                # Credit the recipient
+                if recipient_addr:
+                    old_balance = self.balances.get(recipient_addr, 0)
+                    self.balances[recipient_addr] = old_balance + tx.amount
+                    logging.info(f"  Credited {tx.amount} to {recipient_addr[:8]}... (was {old_balance}, now {self.balances[recipient_addr]})")
+        
+        # Final cleanup: ensure all wallets have entries
+        for address in self.wallets.keys():
+            if address not in self.balances:
+                initial_balance = self.initial_wallet_balances.get(address, 100.0)
+                self.balances[address] = initial_balance
+                logging.info(f"  Restored missing balance for {address[:8]}... to {initial_balance}")
+        
+        logging.info(f"Balance rebuild complete. Final balances: {self.balances}")

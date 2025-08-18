@@ -16,7 +16,6 @@ class Consensus:
         """
         height = last_block.height + 1
         previous_hash = last_block.hash
-        nonce = 0
         timestamp = int(time.time())
         # Add mining reward transaction
         reward_tx = Transaction(
@@ -26,21 +25,24 @@ class Consensus:
             timestamp=timestamp
         )
         txs = transactions.copy() + [reward_tx]
+       # Create block with nonce=0 initially
+        block = Block(
+            mined_by=miner_address,
+            transactions=txs,
+            height=height,
+            difficulty=difficulty,
+            hash="",  # Will be computed
+            previous_hash=previous_hash,
+            nonce=0,
+            timestamp=timestamp
+        )
+
+        # Proof-of-work loop
         while True:
-            block = Block(
-                mined_by=miner_address,
-                transactions=txs,
-                height=height,
-                difficulty=difficulty,
-                hash="",  # Will be set below
-                previous_hash=previous_hash,
-                nonce=nonce,
-                timestamp=timestamp
-            )
             block.hash = block.calculate_hash()
             if Consensus.valid_proof(block, difficulty):
                 return block
-            nonce += 1
+            block.nonce += 1   
 
     @staticmethod
     def adjust_difficulty(chain, target_block_time=10, adjustment_interval=10, min_difficulty=1):
