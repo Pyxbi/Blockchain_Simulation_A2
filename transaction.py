@@ -16,18 +16,17 @@ class Transaction:
         d = {
             "sender": self.sender,
             "recipient": self.recipient,
-            "amount": self.amount,
+            "amount": float(self.amount),
             "timestamp": self.timestamp,
         }
         if include_signature and self.signature:
             d["signature"] = self.signature
         return d
 
-    def sign(self, private_key_hex):
+    def sign(self, signing_key: SigningKey):
         """Sign the transaction with the sender's private key (hex string)."""
         tx_dict = self.to_dict(include_signature=False)
         tx_bytes = json.dumps(tx_dict, sort_keys=True).encode("utf-8")
-        signing_key = SigningKey(private_key_hex, encoder=HexEncoder)
         signature = signing_key.sign(tx_bytes).signature
         self.signature = HexEncoder.encode(signature).decode("utf-8")
 

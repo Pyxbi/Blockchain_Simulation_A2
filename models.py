@@ -50,17 +50,22 @@ class Block:
         """
         Calculate the block's SHA-256 hash from all critical fields.
         """
+        transactions_data = [
+            tx if isinstance(tx, dict) else tx.to_dict(include_signature=True)
+            for tx in self.transactions
+        ]
+
         block_string = json.dumps({
             'mined_by': self.mined_by,
-            'transactions': [tx if isinstance(tx, dict) else tx.to_dict() for tx in self.transactions],
+            'transactions': transactions_data,
             'height': self.height,
             'difficulty': self.difficulty,
             'previous_hash': self.previous_hash,
             'nonce': self.nonce,
             'timestamp': self.timestamp,
             'merkle_root': self.merkle_root
-        }, sort_keys=True) # Convert to JSON string with sorted keys
-        # Calculate the SHA-256 hash of the block string
+        }, sort_keys=True)
+
         return hashlib.sha256(block_string.encode()).hexdigest()
 
     def to_dict(self):

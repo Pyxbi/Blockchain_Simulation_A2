@@ -1,3 +1,4 @@
+import json
 import time
 from models import Block
 from transaction import Transaction
@@ -40,6 +41,21 @@ class Consensus:
         # Proof-of-work loop
         while True:
             block.hash = block.calculate_hash()
+
+            # Debug print to see the block string and hash for each nonce:
+            block_string = json.dumps({
+                'mined_by': block.mined_by,
+                'transactions': [tx if isinstance(tx, dict) else tx.to_dict(include_signature=True) for tx in block.transactions],
+                'height': block.height,
+                'difficulty': block.difficulty,
+                'previous_hash': block.previous_hash,
+                'nonce': block.nonce,
+                'timestamp': block.timestamp,
+                'merkle_root': block.merkle_root
+            }, sort_keys=True)
+
+            print(f"[Mining] Nonce: {block.nonce} Hash: {block.hash}")
+            print(f"[Mining] Block String for hash:\n{block_string}\n")
             if Consensus.valid_proof(block, difficulty):
                 return block
             block.nonce += 1   

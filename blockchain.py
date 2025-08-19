@@ -1,15 +1,19 @@
 import time
 import logging
+from marshmallow import ValidationError
 import requests
 from persistence import Persistence
 from p2p import P2PNode 
 from models import Block
+import schema
 from transaction import Transaction
 from consensus import Consensus
-from wallet import create_wallet as wallet_create_wallet
-from schema import validate_transaction_dict
+from wallet import generate_wallet as wallet_create_wallet
+
 
 class Blockchain(P2PNode, Persistence):
+    transaction_schema = schema.TransactionSchema()
+    block_schema = schema.BlockSchema()
     """
     Core Blockchain class. Manages the chain, transactions, and consensus,
     while inheriting P2P and Persistence functionality.
@@ -94,26 +98,41 @@ class Blockchain(P2PNode, Persistence):
     def add_transaction(self, tx: Transaction):
         """Adds a transaction to the pending pool after full validation."""
         try:
-            validate_transaction_dict(tx.to_dict())
-            if not tx.verify():
+            validated_tx = self.transaction_schema.validate_transaction_dict(tx.to_dict())
+
+            if not validated_tx.verify():
                 raise ValueError("Transaction signature invalid")
             
             # Convert sender public key to address for balance checking
             pubkey_to_address = {pub: addr for addr, pub in self.public_keys.items()}
-            sender_addr = pubkey_to_address.get(tx.sender, tx.sender)
+            print(f"Validated sender: {validated_tx.sender}")
+            print(f"Known public keys: {list(pubkey_to_address.keys())}")
             
-            if self.get_balance(sender_addr) < tx.amount:
+            if validated_tx.sender not in pubkey_to_address:
+                raise ValueError("Sender public key not recognized")
+            
+            sender_addr = pubkey_to_address.get(validated_tx.sender, validated_tx.sender)
+
+            if self.get_balance(sender_addr) < validated_tx.amount:
                 raise ValueError("Insufficient balance")
             
             # Double spend check in pending pool - check by sender address
             pending_spend = sum(t.amount for t in self.pending_transactions 
                               if pubkey_to_address.get(t.sender, t.sender) == sender_addr)
             
+            print(f"Validated sender: {validated_tx.sender}")
+            print(f"Known public keys: {list(pubkey_to_address.keys())}")
+            print(f"Sender addr: {sender_addr}")
+            print(f"Balance: {self.get_balance(sender_addr)}")
+            print(f"Pending spend: {pending_spend}")
+
+            
             if self.get_balance(sender_addr) - pending_spend < tx.amount:
                 raise ValueError("Double-spend attempt detected in pending pool")
 
             self.pending_transactions.append(tx)
             logging.info(f"Transaction {tx.signature[:8]} added to pending pool.")
+            self.save_to_disk()
             return True
         except Exception as e:
             logging.warning(f"Transaction failed validation: {e}")
@@ -123,23 +142,32 @@ class Blockchain(P2PNode, Persistence):
         """Mines a new block with exactly 1 transaction, rewards the miner, and updates the chain."""
         if not self.pending_transactions:
             logging.info("No transactions to mine.")
-            return None
+            return False
 
         # Convert miner identifier to address if it's a public key
         pubkey_to_address = {pub: addr for addr, pub in self.public_keys.items()}
         miner_address = pubkey_to_address.get(miner_identifier, miner_identifier)
         
         # Ensure we have a valid wallet address for the miner
-        if miner_address not in self.wallets:
-            logging.error(f"Invalid miner address: {miner_address}")
-            return None
+        # if miner_address not in self.wallets:
+        #     logging.error(f"Invalid miner address: {miner_address}")
+        #     return False
+
+            # Accept external public keys not in self.wallets
+        if miner_address not in self.wallets and miner_identifier not in pubkey_to_address:
+            # Check if miner_identifier looks like a valid public key (64 hex chars)
+            if isinstance(miner_identifier, str) and len(miner_identifier) == 64:
+                miner_address = miner_identifier  # Use raw public key as reward address
+            else:
+                logging.error(f"Invalid miner identifier: {miner_identifier}")
+                return False
 
         last_block = self.get_latest_block()
-        # --- SELECT EXACTLY 1 TRANSACTION ---
+        #select exactly 1 transaction for the block
         selected_transaction = self._select_one_transaction_for_block()
         if not selected_transaction:
             logging.info("No valid transaction available for mining.")
-            return None
+            return False
 
         # Only pass the user transaction(s) to Consensus; reward is handled there
         transactions_to_mine = [selected_transaction]
@@ -150,13 +178,17 @@ class Blockchain(P2PNode, Persistence):
             miner_address=miner_address,  # Always pass the wallet address
             difficulty=self.difficulty
         )
-
+        try:
+            validated_block = self.block_schema.validate_block_dict(block.to_dict())
+        except ValidationError as e:
+            logging.error(f"Block validation failed: {e.messages}")
+            return False  
         # Add the valid block to the chain
-        self.chain.append(block)
+        self.chain.append(validated_block)
 
-        # --- PRECISE MEMPOOL MANAGEMENT ---
+
         # Remove ONLY the transaction that was actually mined
-        mined_user_transactions = [tx for tx in block.transactions if tx.sender != "COINBASE"]
+        mined_user_transactions = [tx for tx in validated_block.transactions if tx.sender != "COINBASE"]
         if mined_user_transactions:
             mined_tx = mined_user_transactions[0]  # Should be exactly 1
             self.pending_transactions = [
@@ -171,8 +203,8 @@ class Blockchain(P2PNode, Persistence):
         # Adjust difficulty for the next block
         self.difficulty = Consensus.adjust_difficulty(self.chain)
         self.save_to_disk()
-        logging.info(f"Block #{block.height} mined successfully with 1 transaction by {miner_address[:10]}...")
-        return block
+        logging.info(f"Block #{validated_block.height} mined successfully with 1 transaction by {miner_address[:10]}...")
+        return validated_block
 
     def _select_one_transaction_for_block(self):
         """
@@ -197,10 +229,10 @@ class Blockchain(P2PNode, Persistence):
                 logging.warning(f"Skipping invalid transaction {tx.signature[:8]}... (balance: {sender_balance}, required: {tx.amount})")
         
         # No valid transactions found
-        return None
+        return False
 
-    def is_valid_block(self, block: Block, previous_block: Block = None):
-        if previous_block is None:
+    def is_valid_block(self, block: Block, previous_block: Block = False):
+        if previous_block is False:
             previous_block = self.get_latest_block()
         if block.hash != block.calculate_hash():
             logging.error(f"Invalid block hash for block #{block.height}")
@@ -216,7 +248,7 @@ class Blockchain(P2PNode, Persistence):
             return False
         return True
 
-    def is_valid_chain(self, chain=None):
+    def is_valid_chain(self, chain=False):
         chain = chain or self.chain
         if not chain:
             return False, "Empty chain"
@@ -238,7 +270,7 @@ class Blockchain(P2PNode, Persistence):
 
     def sync_chain(self):
         """Synchronizes the chain by fetching and validating chains from peers."""
-        longest_chain = None
+        longest_chain = False
         max_length = len(self.chain)
 
         for peer_url in self.peers:
@@ -302,7 +334,7 @@ class Blockchain(P2PNode, Persistence):
                         logging.warning(f"  Unknown sender {sender_addr[:8]}... for debit of {tx.amount}")
                 
                 # Handle recipient (credit) - for all transactions
-                recipient_addr = None
+                recipient_addr = False
                 
                 if tx.sender == "COINBASE":
                     # For COINBASE, recipient should be an address (mining reward)

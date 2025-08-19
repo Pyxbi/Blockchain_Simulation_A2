@@ -3,7 +3,6 @@ import os
 import logging
 from transaction import Transaction
 from models import Block
-from nacl.signing import SigningKey, VerifyKey
 
 class Persistence:
     def save_to_disk(self):
@@ -35,8 +34,8 @@ class Persistence:
         """Load blockchain state from disk using new class-based structures."""
         if os.path.exists('blockchain.json'):
             try:
-                with open('blockchain.json', 'r') as f:
-                    data = json.load(f)
+                with open('blockchain.json', 'r') as file:
+                    data = json.load(file)
                     self.chain = []
                     for block_data in data['chain']:
                         transactions = [Transaction.from_dict(tx) for tx in block_data['transactions']]
@@ -66,23 +65,17 @@ class Persistence:
                         self.public_keys = {}
                         for addr, private_key_hex in data['wallets'].items():
                             try:
-                                private_key = SigningKey(bytes.fromhex(private_key_hex))
-                                self.wallets[addr] = private_key
+                                # Store as hex string, not as SigningKey object
+                                self.wallets[addr] = private_key_hex
                             except Exception as e:
                                 logging.warning(f"Failed to load private key for {addr}: {e}")
                         for addr, public_key_hex in data['public_keys'].items():
                             try:
-                                public_key = VerifyKey(bytes.fromhex(public_key_hex))
-                                self.public_keys[addr] = public_key
+                                # Store as hex string, not as VerifyKey object
+                                self.public_keys[addr] = public_key_hex
                             except Exception as e:
                                 logging.warning(f"Failed to load public key for {addr}: {e}")
                         logging.info(f"Loaded {len(self.wallets)} wallets from disk")
                     logging.info("Blockchain state loaded from disk")
             except Exception as e:
                 logging.error(f"Failed to load blockchain state: {e}")
-                # If loading fails, remove the corrupted file and start fresh
-                try:
-                    os.remove('blockchain.json')
-                    logging.info("Corrupted blockchain file removed, starting fresh")
-                except:
-                    pass
