@@ -10,7 +10,7 @@ class Consensus:
         return block.hash.startswith("0" * difficulty)
 
     @staticmethod
-    def proof_of_work(last_block: Block, transactions, miner_address, difficulty: int, reward_amount=10):
+    def proof_of_work(last_block: Block, transactions, miner_address, difficulty: int, base_reward=10):
         """
         Perform proof-of-work to mine a new block.
         Returns the mined Block.
@@ -18,11 +18,12 @@ class Consensus:
         height = last_block.height + 1
         previous_hash = last_block.hash
         timestamp = int(time.time())
+        adjusted_reward = base_reward * difficulty
         # Add mining reward transaction
         reward_tx = Transaction(
             sender="COINBASE",
             recipient=miner_address,
-            amount=reward_amount,
+            amount=adjusted_reward,
             timestamp=timestamp
         )
         txs = transactions.copy() + [reward_tx]

@@ -20,7 +20,7 @@ class P2PNode:
         self._setup_routes()
 
     def _setup_routes(self):
-        """Defines the Flask routes and SocketIO events for P2P communication."""
+        """Defines the Flask routes and SocketIO events for P2P communication"""
         @self.app.route('/chain', methods=['GET'])
         def get_chain():
             chain_data = [block.to_dict() for block in self.chain]
@@ -34,7 +34,7 @@ class P2PNode:
                     return jsonify({'error': 'No transaction data provided'}), 400
                 
                 tx = Transaction.from_dict(data)
-                logging.info(f"Node {self.port} received new transaction {tx.signature[:8]}... via HTTP.")
+                logging.info(f"Node {self.port} received new transaction {tx.signature[:8]}... via HTTP")
                 
                 # Before processing, sync our chain to get latest balances
                 self.sync_chain()
@@ -54,7 +54,7 @@ class P2PNode:
                     return jsonify({'error': 'No block data provided'}), 400
                 
                 block = Block.from_dict(data)
-                logging.info(f"Node {self.port} received new block #{block.height} via HTTP.")
+                logging.info(f"Node {self.port} received new block #{block.height} via HTTP")
                 
                 # Add to block queue for processing
                 self.block_queue.put(block)
@@ -77,7 +77,7 @@ class P2PNode:
         def handle_new_block(block_data):
             try:
                 block = Block.from_dict(block_data)
-                logging.info(f"Node {self.port} received new block #{block.height} via WebSocket.")
+                logging.info(f"Node {self.port} received new block #{block.height} via WebSocket")
                 self.block_queue.put(block)
             except Exception as e:
                 logging.error(f"Error handling new block event: {e}")
@@ -86,19 +86,19 @@ class P2PNode:
         def handle_new_transaction(tx_data):
             try:
                 tx = Transaction.from_dict(tx_data)
-                logging.info(f"Node {self.port} received new transaction {tx.signature[:8]}... via WebSocket.")
+                logging.info(f"Node {self.port} received new transaction {tx.signature[:8]}... via WebSocket")
                 self.transaction_queue.put(tx)
             except Exception as e:
                 logging.error(f"Error handling new transaction event: {e}")
 
     def run(self):
-        """Starts the node's server and background queue processor."""
+        """Starts the node's server and background queue processor"""
         self._start_queue_processor()
-        logging.info(f"🚀 Starting node server at http://{self.host}:{self.port}")
+        logging.info(f"Starting node server at http://{self.host}:{self.port}")
         self.socketio.run(self.app, host=self.host, port=self.port, use_reloader=False)
 
     def connect_to_peer(self, peer_url):
-        """Connects this node to a new peer."""
+        """Connects this node to a new peer"""
         if peer_url != f"http://{self.host}:{self.port}":
             self.peers.add(peer_url)
             try:
@@ -108,8 +108,8 @@ class P2PNode:
                 logging.warning(f"Node {self.port} could not connect to peer {peer_url}: {e}")
 
     def broadcast_transaction(self, transaction: Transaction):
-        """Broadcasts a transaction to all connected peers via HTTP and SocketIO."""
-        logging.info(f"Node {self.port} broadcasting transaction to {len(self.peers)} peers.")
+        """Broadcasts a transaction to all connected peers via HTTP and SocketIO"""
+        logging.info(f"Node {self.port} broadcasting transaction to {len(self.peers)} peers")
         for peer_url in self.peers:
             try:
                 # Send via HTTP POST to the peer's transaction endpoint
@@ -124,8 +124,8 @@ class P2PNode:
                 logging.error(f"Node {self.port}: Failed to broadcast transaction to {peer_url}: {e}")
 
     def broadcast_block(self, block: Block):
-        """Broadcasts a newly mined block to all connected peers via HTTP."""
-        logging.info(f"Node {self.port} broadcasting block #{block.height} to {len(self.peers)} peers.")
+        """Broadcasts a newly mined block to all connected peers via HTTP"""
+        logging.info(f"Node {self.port} broadcasting block #{block.height} to {len(self.peers)} peers")
         for peer_url in self.peers:
             try:
                 # Send via HTTP POST to the peer's block endpoint
@@ -140,25 +140,24 @@ class P2PNode:
                 logging.error(f"Node {self.port}: Failed to broadcast block to {peer_url}: {e}")
 
     def sync_chain(self):
-        """Synchronizes the chain with the longest valid chain from peers."""
+        """Synchronizes the chain with the longest valid chain from peers"""
         logging.info(f"Node {self.port} starting chain synchronization...")
-        # (This method is now part of the Blockchain class as it needs access to self.chain)
-        super().sync_chain() # We call the method on the parent class (Blockchain)
+        # This method is now part of the Blockchain class as it needs access to self.chain
+        super().sync_chain() # We call the method on the parent class Blockchain
 
     def _start_queue_processor(self):
-        """Runs the block and transaction queue processing in a background thread."""
+        """Runs the block and transaction queue processing in a background thread"""
         def process_queues():
             # Timer for proactive, periodic sync
             last_sync_time = time.time()
             
             while True:
-                # --- 1. REACTIVE SYNC (Your existing logic) ---
                 # This handles blocks that arrive out of order during normal operation.
                 try:
                     block = self.block_queue.get_nowait()
                     # If we receive a block that's ahead of us, we know we're behind.
                     if block.height > len(self.chain):
-                         logging.info(f"Node {self.port}: Received future block #{block.height}. Triggering chain sync.")
+                         logging.info(f"Node {self.port}: Received future block #{block.height}. Triggering chain sync")
                          self.sync_chain()
                     # If the block is the very next one, add it.
                     elif self.is_valid_block(block) and block.hash not in [b.hash for b in self.chain]:
@@ -172,24 +171,22 @@ class P2PNode:
                     pass # It's normal for the queue to be empty.
                 except Exception as e:
                     logging.error(f"P2P Error processing block queue: {e}")
-
-                # --- (Your transaction processing logic is fine here) ---
+                # This handles transactions that arrive out of order during normal operation.
                 try:
                     tx = self.transaction_queue.get_nowait()
                     if tx.signature not in [t.signature for t in self.pending_transactions]:
                         if tx.verify():
                             self.pending_transactions.append(tx)
-                            logging.info(f"P2P: Transaction {tx.signature[:8]}... added to pending pool from peer.")
+                            logging.info(f"P2P: Transaction {tx.signature[:8]}... added to pending pool from peer")
                 except queue.Empty:
                     pass
                 except Exception as e:
                     logging.error(f"P2P Error processing transaction queue: {e}")
                 
-                # --- 2. PROACTIVE SYNC (The self-healing mechanism) ---
                 # Every 60 seconds, proactively ask peers if they have a longer chain.
                 # This is what allows a node to catch up after being offline.
                 if time.time() - last_sync_time > 60:
-                    logging.info(f"Node {self.port}: Performing periodic automatic chain synchronization.")
+                    logging.info(f"Node {self.port}: Performing periodic automatic chain synchronization")
                     self.sync_chain()
                     last_sync_time = time.time() # Reset the timer
 

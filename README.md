@@ -3,24 +3,29 @@
 ## Overview
 This project is a comprehensive, modular blockchain implementation in Python, designed to meet academic requirements for a blockchain assignment. It features a robust block structure, Ed25519 cryptographic signing, transaction management, Proof-of-Work consensus, double-spend prevention, P2P networking, wallet functionality, data persistence, and an interactive command-line interface.
 
+
+## Blockchain Structure
+
+**main.py**: Acts as the command-line interface (CLI) controller, handling user interactions and orchestrating operations across other modules. It initializes the blockchain node, manages peer connections, and provides a user-friendly interface for actions like creating wallets, sending transactions, mining blocks, and viewing the blockchain state.
+
+**blockchain.py**: The core module that encapsulates the blockchain's primary logic, including chain management, transaction validation, block mining, and balance tracking. It inherits from P2PNode and Persistence to integrate peer-to-peer (P2P) networking and disk persistence.
+
+**consensus.py**: Implements the proof-of-work (PoW) consensus mechanism and difficulty adjustment logic, ensuring the security and integrity of the blockchain.
+
+**wallet.py**: Manages cryptographic key pair generation and wallet address creation using the Ed25519 algorithm.
+
+**transaction.py**: Defines the Transaction class, handling transaction creation, signing, and verification.
+
+**models.py**: Contains data models (Block and Peer) with methods for serialization, deserialization, and hash calculations.
+
+**p2p.py**: Manages P2P networking, including peer discovery, transaction and block broadcasting, and chain synchronization.
+
+**persistence.py**: Handles saving and loading the blockchain state to/from disk in JSON format.
+
+**schema.py**: Defines schemas for validating transaction and block data using the Marshmallow library.
+
 ## Features
 
-### Core Blockchain Components
-- **Block Structure**: Complete block implementation with index, timestamp, transactions, previous hash, nonce, hash, difficulty, and miner information
-- **Cryptographic Security**: Ed25519 digital signatures using PyNaCl for transaction authentication
-- **Chain Integrity**: SHA-256 hash linking and comprehensive chain validation
-- **Transaction Pool**: Pending transaction management with double-spend prevention (account model)
-- **Proof-of-Work Consensus**: Adjustable difficulty mining with automatic difficulty adjustment
-- **Mining Rewards**: Automatic coinbase transactions for miners
-- **Balance Tracking**: Real-time balance management with sender/recipient synchronization
-
-### Advanced Features
-- **Wallet Functionality**: Complete wallet creation with public/private key pairs
-- **Data Persistence**: JSON-based blockchain state storage and recovery
-- **Schema Validation**: Marshmallow-based transaction and block validation
-- **P2P Networking**: Multi-node blockchain synchronization and transaction broadcasting
-- **Double-Spend Prevention**: Comprehensive balance checking including pending transactions
-- **Global Ordering**: Height-based block ordering with proper chain validation
 
 ### User Interface
 - **Interactive CLI**: Menu-driven interface with 9 comprehensive options
@@ -29,24 +34,33 @@ This project is a comprehensive, modular blockchain implementation in Python, de
 - **Mining Interface**: Mine blocks with automatic reward distribution
 - **Blockchain Viewing**: Display complete blockchain with transaction details
 - **Balance Checking**: Real-time balance queries for any address
-- **Testing Suite**: Built-in comprehensive test function for all features
+
 
 ## Installation
 
 1. **Clone the repository:**
    ```bash
    git clone <repository-url>
-   cd blockchain-demo-A2
+   cd Blockchain_Simulation_A2
    ```
 
-2. **Install dependencies:**
+2. **(Recommended) Create a virtual environment:**
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate  # Windows: .venv\Scripts\activate
+   ```
+
+3. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Run the interactive CLI:**
+4. **Run the interactive CLI:**
    ```bash
-   python main.py
+   python3 main.py 5000 (for node 1)
+   python3 main.py 5001 5000 (for node 2)
+   python3 main.py 5002 5001 5000 (for node 3)
+   and so on...
    ```
 
 ## Usage
@@ -73,7 +87,6 @@ The application provides an interactive menu-driven interface:
 4. **Mine blocks** (Option 3) - Process pending transactions and earn mining rewards
 5. **View blockchain** (Option 4) - Inspect the complete chain with all transactions
 6. **Check balances** (Option 5) - Verify account balances after transactions
-7. **Run tests** (Option 8) - Execute comprehensive test suite
 
 ## Architecture
 
@@ -87,7 +100,7 @@ The application provides an interactive menu-driven interface:
 - `schema.py` - Marshmallow validation schemas for transactions and blocks
 - `persistence.py` - JSON-based data storage and recovery
 - `p2p.py` - Multi-node networking and synchronization
-- `tests/` - Test files for various components
+
 
 ### Key Design Decisions
 - **Ed25519 Cryptography**: Used PyNaCl for fast, secure digital signatures
@@ -106,54 +119,9 @@ The application provides an interactive menu-driven interface:
 - **Chain Validation**: Complete chain integrity checks on synchronization
 - **Schema Validation**: Input validation for all transactions and blocks
 
-## Testing
 
-The application includes a comprehensive testing suite (Option 8 in CLI) that validates:
-- Wallet creation and key generation
-- Transaction signing and verification
-- Mining and reward distribution
-- Balance tracking and updates
-- Chain validation and integrity
-- Double-spend prevention
-- P2P synchronization
+Note: Tests are integrated into the CLI (Option 8). There is no separate test directory in this repository; use the built-in tests to validate core functionality.
 
-You can also run individual test files:
-```bash
-python tests/test_mining.py
-python tests/test_function.py
-python test/test_p2p.py
-```
 
-## Extending the System
 
-### Potential Enhancements
-- **Database Storage**: Replace JSON with SQLite or PostgreSQL
-- **REST API**: Add HTTP endpoints for external integration
-- **Real P2P Network**: Implement actual network communication
-- **Smart Contracts**: Add programmable transaction logic
-- **Web Interface**: Build a web-based dashboard
-- **Performance Optimization**: Add caching and indexing
-- **Advanced Consensus**: Implement Proof-of-Stake or other algorithms
 
-### Development Notes
-- All external dependencies are minimal and well-documented
-- Code follows Python best practices with comprehensive error handling
-- Modular design allows easy extension and modification
-- Extensive logging for debugging and monitoring
-
-## Academic Requirements Compliance
-
-This implementation satisfies all 10 core blockchain requirements:
-1. ✅ **Block Structure** - Complete block implementation with all required fields
-2. ✅ **Cryptographic Hashing** - SHA-256 for blocks, Ed25519 for transactions
-3. ✅ **Transaction Handling** - Full transaction lifecycle with digital signatures
-4. ✅ **Consensus Mechanism** - Proof-of-Work with dynamic difficulty adjustment
-5. ✅ **Double-Spend Prevention** - Comprehensive balance and pending transaction validation
-6. ✅ **Global Ordering** - Height-based block ordering with chain validation
-7. ✅ **Data Persistence** - JSON-based storage with automatic save/load
-8. ✅ **User Interface** - Interactive CLI with comprehensive menu options
-9. ✅ **P2P Networking** - Multi-node synchronization and transaction broadcasting
-10. ✅ **Wallet Functionality** - Complete Ed25519 key pair management and signing
-
-## Author
-- Your Name Here # Blockchain_Simulation_A2

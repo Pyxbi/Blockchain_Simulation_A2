@@ -55,7 +55,7 @@ def main():
         print("5. Check balance")
         print("6. View all wallets")
         print("7. Faucet (add test funds)")
-        print("8. Validate blockchain test")
+        print("8. Run tests (includes difficulty adjustment demo)")
         print("9. Exit")
         
         try:
@@ -316,15 +316,99 @@ def main():
             print(f"New balance: {node.get_balance(address)} coins")
 
         elif choice == '8':
-            # Basic tests
+            # Basic tests + Difficulty Adjustment Test
             is_valid_chain, message = node.is_valid_chain()
             if is_valid_chain:
-                print("Blockchain is valid!")
+                print("✅ Blockchain is valid!")
             else:
-                print(f"Blockchain is invalid: {message}")
-
+                print(f"❌ Blockchain is invalid: {message}")
+            
+            # Test difficulty adjustment
+            print("\n🔧 Testing Difficulty Adjustment...")
+            
+            # Show current state
+            current_difficulty = node.difficulty
+            chain_length = len(node.chain)
+            print(f"Current difficulty: {current_difficulty}")
+            print(f"Current chain length: {chain_length} blocks")
+            
+            if not node.wallets:
+                print("Creating test wallet for mining...")
+                test_addr, test_priv, test_pub = node.create_wallet(initial_balance=1000)
+                print(f"Created test wallet: {test_addr[:16]}...")
+            else:
+                # Use first available wallet
+                test_addr = list(node.wallets.keys())[0]
+                test_pub = node.public_keys[test_addr]
+            
+            # Create multiple test transactions if mempool is empty
+            if not node.pending_transactions:
+                print("Creating test transactions for mining...")
+                for i in range(3):
+                    # Create self-transactions for testing
+                    test_tx = Transaction(sender=test_pub, recipient=test_pub, amount=1)
+                    test_priv_key = SigningKey(node.wallets[test_addr], encoder=HexEncoder)
+                    test_tx.sign(test_priv_key)
+                    node.add_transaction(test_tx)
+                print(f"Created {len(node.pending_transactions)} test transactions")
+            
+            # Mine several blocks quickly to trigger difficulty adjustment
+            print("\n⛏️ Mining blocks to demonstrate difficulty adjustment...")
+            blocks_to_mine = 5
+            
+            for i in range(blocks_to_mine):
+                if not node.pending_transactions:
+                    # Create another test transaction
+                    test_tx = Transaction(sender=test_pub, recipient=test_pub, amount=1)
+                    test_priv_key = SigningKey(node.wallets[test_addr], encoder=HexEncoder)
+                    test_tx.sign(test_priv_key)
+                    node.add_transaction(test_tx)
+                
+                print(f"\n--- Mining Block {i+1}/{blocks_to_mine} ---")
+                old_difficulty = node.difficulty
+                
+                start_time = time.time()
+                block = node.mine_block(test_pub)
+                end_time = time.time()
+                
+                if block:
+                    new_difficulty = node.difficulty
+                    mining_time = end_time - start_time
+                    
+                    print(f"✅ Block #{block.height} mined!")
+                    print(f"   Mining time: {mining_time:.2f}s")
+                    print(f"   Difficulty: {old_difficulty} → {new_difficulty}")
+                    print(f"   Hash: {block.hash[:20]}...")
+                    
+                    if new_difficulty != old_difficulty:
+                        if new_difficulty > old_difficulty:
+                            print(f"   🔼 Difficulty INCREASED (blocks mined too fast)")
+                        else:
+                            print(f"   🔽 Difficulty DECREASED (blocks mined too slow)")
+                    else:
+                        print(f"   ➖ Difficulty unchanged")
+                else:
+                    print(f"❌ Mining failed for block {i+1}")
+                    break
+            
+            print(f"\n📊 Difficulty Adjustment Summary:")
+            print(f"   Starting difficulty: {current_difficulty}")
+            print(f"   Final difficulty: {node.difficulty}")
+            print(f"   Chain length: {len(node.chain)} blocks")
+            print(f"   Adjustment triggered: {'Yes' if node.difficulty != current_difficulty else 'No'}")
+            
+            # Show recent block times
+            if len(node.chain) >= 3:
+                print(f"\n⏰ Recent Block Times:")
+                recent_blocks = node.chain[-3:]
+                for i in range(1, len(recent_blocks)):
+                    prev_block = recent_blocks[i-1]
+                    curr_block = recent_blocks[i]
+                    time_diff = curr_block.timestamp - prev_block.timestamp
+                    print(f"   Block #{curr_block.height}: {time_diff}s after previous")
+                    
         elif choice == '9':
-            print(" Exiting...")
+            print("👋 Exiting...")
             break
 
         else:

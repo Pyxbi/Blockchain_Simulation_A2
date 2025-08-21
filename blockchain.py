@@ -197,7 +197,6 @@ class Blockchain(P2PNode, Persistence):
             ]
             logging.info(f"Removed transaction {mined_tx.signature[:8]}... from mempool. {len(self.pending_transactions)} transactions remain.")
 
-        # --- REBUILD BALANCES TO INCLUDE MINING REWARD ---
         self.rebuild_balances()
 
         # Adjust difficulty for the next block
@@ -265,6 +264,8 @@ class Blockchain(P2PNode, Persistence):
                 return False, f"Difficulty not met in block #{current.height}"
             if current.height != previous.height + 1:
                 return False, f"Invalid height sequence at block #{current.height}"
+            if current.timestamp <= previous.timestamp:
+                return False,f"Invalid timestamp for block #{current.height}. Must be after previous block."
         return True, "OK"
 
 

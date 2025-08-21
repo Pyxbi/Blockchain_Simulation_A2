@@ -99,9 +99,3 @@ class Block:
             timestamp=data['timestamp'],
             merkle_root=data.get('merkle_root')
         )
-
-class Peer:
-    def __init__(self, ip, port, last_seen):
-        self.ip = ip
-        self.port = port
-        self.last_seen = last_seen
