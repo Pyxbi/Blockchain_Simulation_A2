@@ -6,23 +6,23 @@ This project is a comprehensive, modular blockchain implementation in Python, de
 
 ## Blockchain Structure
 
-**main.py**: Acts as the command-line interface (CLI) controller, handling user interactions and orchestrating operations across other modules. It initializes the blockchain node, manages peer connections, and provides a user-friendly interface for actions like creating wallets, sending transactions, mining blocks, and viewing the blockchain state.
+- `main.py`: Acts as the command-line interface (CLI) controller, handling user interactions and orchestrating operations across other modules. It initializes the blockchain node, manages peer connections, and provides a user-friendly interface for actions like creating wallets, sending transactions, mining blocks, and viewing the blockchain state.
 
-**blockchain.py**: The core module that encapsulates the blockchain's primary logic, including chain management, transaction validation, block mining, and balance tracking. It inherits from P2PNode and Persistence to integrate peer-to-peer (P2P) networking and disk persistence.
+- `blockchain.py`: The core module that encapsulates the blockchain's primary logic, including chain management, transaction validation, block mining, and balance tracking. It inherits from `P2PNode` and `Persistence` to integrate peer-to-peer (P2P) networking and disk persistence.
 
-**consensus.py**: Implements the proof-of-work (PoW) consensus mechanism and difficulty adjustment logic, ensuring the security and integrity of the blockchain.
+- `consensus.py`: Implements the proof-of-work (PoW) consensus mechanism and difficulty adjustment logic, ensuring the security and integrity of the blockchain.
 
-**wallet.py**: Manages cryptographic key pair generation and wallet address creation using the Ed25519 algorithm.
+- `wallet.py`: Manages cryptographic key pair generation and wallet address creation using the Ed25519 algorithm.
 
-**transaction.py**: Defines the Transaction class, handling transaction creation, signing, and verification.
+- `transaction.py`: Defines the `Transaction` class, handling transaction creation, signing, and verification.
 
-**models.py**: Contains data models (Block and Peer) with methods for serialization, deserialization, and hash calculations.
+- `models.py`: Contains data models (`Block` and `Peer`) with methods for serialization, deserialization, and hash calculations.
 
-**p2p.py**: Manages P2P networking, including peer discovery, transaction and block broadcasting, and chain synchronization.
+- `p2p.py`: Manages P2P networking, including peer discovery, transaction and block broadcasting, and chain synchronization.
 
-**persistence.py**: Handles saving and loading the blockchain state to/from disk in JSON format.
+- `persistence.py`: Handles saving and loading the blockchain state to/from disk in JSON format.
 
-**schema.py**: Defines schemas for validating transaction and block data using the Marshmallow library.
+- `schema.py`: Defines schemas for validating transaction and block data using the Marshmallow library.
 
 ## Features
 
@@ -87,6 +87,11 @@ The application provides an interactive menu-driven interface:
 4. **Mine blocks** (Option 3) - Process pending transactions and earn mining rewards
 5. **View blockchain** (Option 4) - Inspect the complete chain with all transactions
 6. **Check balances** (Option 5) - Verify account balances after transactions
+
+## P2P Usage and Testing Guide
+
+For a full step-by-step walkthrough of multi-node setup, broadcasting, synchronization, double-spend prevention, and immutability checks, see:
+[GUIDE_P2P_Usage_and_Testing.md](./GUIDE_P2P_Usage_and_Testing.md)
 
 ## Architecture
 
