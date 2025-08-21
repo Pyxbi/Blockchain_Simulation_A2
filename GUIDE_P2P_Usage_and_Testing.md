@@ -2,6 +2,10 @@
 
 This guide walks you through launching multiple nodes, broadcasting transactions and blocks, verifying synchronization, testing double-spend prevention, and demonstrating blockchain immutability checks.
 
+**📹 Video Demonstrations:**
+- [Steps 1-5: Multi-node Setup & Broadcasting](https://www.loom.com/share/71fac1c63c994f3d912ca26ba12b884c?sid=4e2c113b-af30-4751-8e95-dc9c450f581d)
+- [Steps 6-7: Immutability Testing & Double-Spend Prevention](https://www.loom.com/share/4af70355e0504448953dfb6a31b41e5f?sid=8189c3c2-a1fb-456a-8aa8-3fc28cb8e9e4)
+
 
 ### Step 1: Prepare Terminals
 Open three terminals and cd into the project directory in each:
@@ -72,24 +76,24 @@ This shows that tampering with stored blocks breaks validation and that nodes co
 Setup:
 - Ensure Node 1 and Node 2 have mined at least 2-3 blocks so they share a healthy, valid chain.
 
-Tamper a node’s local storage:
-1) Stop Node 3 (Ctrl+C in Terminal 3) so it won’t rewrite state while you edit.
+Tamper a node's local storage:
+1) Stop Node 2 (Ctrl+C in Terminal 2) so it won't rewrite state while you edit.
 2) Open `blockchain.json` in a text editor and change a field inside a mined block (for example, modify a transaction amount or the `previous_hash`). Save the file.
-3) Restart Node 3:
+3) Restart Node 2:
 ```bash
-python3 main.py 5002 5000 5001
+python3 main.py 5001 5000
 ```
-4) In Node 3, run Option 8 (Run tests). Expected: it reports the blockchain is invalid.
+4) In Node 2, run Option 8 (Run tests). Expected: it reports the blockchain is invalid.
 
 Recover to the valid network chain:
-5) On Node 1, mine one additional block so its chain becomes strictly longer than Node 3’s.
-6) Trigger Node 3 to sync:
+5) On Node 1, mine one additional block so its chain becomes strictly longer than Node 2's.
+6) Trigger Node 2 to sync:
    - Either wait up to 60 seconds for the periodic sync, or
-   - From Node 1, create/broadcast any transaction; when Node 3 receives it, it will run synchronization first.
-7) On Node 3, use Option 4 (View node) to confirm it now matches the longer, valid chain from its peers.
+   - From Node 1, create/broadcast any transaction; when Node 2 receives it, it will run synchronization first.
+7) On Node 2, use Option 4 (View node) to confirm it now matches the longer, valid chain from its peers.
 
 Why this works:
-- Each block’s hash commits to all critical fields. Manual edits cause hash mismatches, which validation detects.
+- Each block's hash commits to all critical fields. Manual edits cause hash mismatches, which validation detects.
 - Nodes adopt the longest valid chain observed from peers, overwriting invalid local state once a strictly longer valid chain is seen.
 
 ### Troubleshooting

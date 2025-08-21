@@ -55,8 +55,10 @@ def main():
         print("5. Check balance")
         print("6. View all wallets")
         print("7. Faucet (add test funds)")
-        print("8. Run tests (includes difficulty adjustment demo)")
-        print("9. Exit")
+        print("8.  Difficulty Adjustment Test")
+        print("9.  Run tests immutability")
+        print("10. View pending transactions")
+        print("11. Exit")
         
         try:
             choice = input(f"Node@{port}> ").strip()
@@ -317,12 +319,6 @@ def main():
 
         elif choice == '8':
             # Basic tests + Difficulty Adjustment Test
-            is_valid_chain, message = node.is_valid_chain()
-            if is_valid_chain:
-                print("✅ Blockchain is valid!")
-            else:
-                print(f"❌ Blockchain is invalid: {message}")
-            
             # Test difficulty adjustment
             print("\n🔧 Testing Difficulty Adjustment...")
             
@@ -353,7 +349,7 @@ def main():
                 print(f"Created {len(node.pending_transactions)} test transactions")
             
             # Mine several blocks quickly to trigger difficulty adjustment
-            print("\n⛏️ Mining blocks to demonstrate difficulty adjustment...")
+            print("\n Mining blocks to demonstrate difficulty adjustment...")
             blocks_to_mine = 5
             
             for i in range(blocks_to_mine):
@@ -373,12 +369,6 @@ def main():
                 
                 if block:
                     new_difficulty = node.difficulty
-                    mining_time = end_time - start_time
-                    
-                    print(f"✅ Block #{block.height} mined!")
-                    print(f"   Mining time: {mining_time:.2f}s")
-                    print(f"   Difficulty: {old_difficulty} → {new_difficulty}")
-                    print(f"   Hash: {block.hash[:20]}...")
                     
                     if new_difficulty != old_difficulty:
                         if new_difficulty > old_difficulty:
@@ -388,7 +378,7 @@ def main():
                     else:
                         print(f"   ➖ Difficulty unchanged")
                 else:
-                    print(f"❌ Mining failed for block {i+1}")
+                    print(f" Mining failed for block {i+1}")
                     break
             
             print(f"\n📊 Difficulty Adjustment Summary:")
@@ -406,13 +396,26 @@ def main():
                     curr_block = recent_blocks[i]
                     time_diff = curr_block.timestamp - prev_block.timestamp
                     print(f"   Block #{curr_block.height}: {time_diff}s after previous")
-                    
+
         elif choice == '9':
-            print("👋 Exiting...")
+            is_valid_chain, message = node.is_valid_chain()
+            if is_valid_chain:
+                print("✅ Blockchain is valid!")
+            else:
+                print(f"❌ Blockchain is invalid: {message}")
+            
+        elif choice == '10':
+             # Show current mempool
+            print("\nCurrent Pending Transactions:")
+            for i, tx in enumerate(node.pending_transactions, 1):
+                print(f"   {i}. {tx.sender[:16]}... → {tx.recipient[:16]}... : {tx.amount} coins")
+
+        elif choice == '11':
+            print(" Exiting...")
             break
 
         else:
-            print("Invalid choice. Please enter 1-9.")
+            print("Invalid choice. Please enter 1-10.")
 
 
 if __name__ == "__main__":

@@ -143,6 +143,11 @@ class Blockchain(P2PNode, Persistence):
         if not self.pending_transactions:
             logging.info("No transactions to mine.")
             return False
+        
+        is_valid_chain, message = self.is_valid_chain()
+        if not is_valid_chain:
+            logging.error(f"Cannot mine block: Invalid chain - {message}")
+            return False
 
         # Convert miner identifier to address if it's a public key
         pubkey_to_address = {pub: addr for addr, pub in self.public_keys.items()}
@@ -164,7 +169,7 @@ class Blockchain(P2PNode, Persistence):
 
         last_block = self.get_latest_block()
         #select exactly 1 transaction for the block
-        selected_transaction = self._select_one_transaction_for_block()
+        selected_transaction = self.pending_transactions[0]
         if not selected_transaction:
             logging.info("No valid transaction available for mining.")
             return False
@@ -204,31 +209,6 @@ class Blockchain(P2PNode, Persistence):
         self.save_to_disk()
         logging.info(f"Block #{validated_block.height} mined successfully with 1 transaction by {miner_address[:10]}...")
         return validated_block
-
-    def _select_one_transaction_for_block(self):
-        """
-        Select exactly ONE valid transaction for the next block.
-        Uses FIFO (First-In-First-Out) selection - oldest transaction first.
-        """
-        # Sort transactions by timestamp (oldest first)
-        sorted_transactions = sorted(self.pending_transactions, key=lambda tx: tx.timestamp)
-        
-        # Build a reverse mapping from public key hex to address
-        pubkey_to_address = {pub: addr for addr, pub in self.public_keys.items()}
-        
-        for tx in sorted_transactions:
-            # Check if transaction is still valid - convert sender public key to address
-            sender_addr = pubkey_to_address.get(tx.sender, tx.sender)
-            sender_balance = self.balances.get(sender_addr, 0)
-            
-            if sender_balance >= tx.amount and tx.verify():
-                logging.info(f"Selected transaction {tx.signature[:8]}... for mining (amount: {tx.amount}, sender balance: {sender_balance})")
-                return tx
-            else:
-                logging.warning(f"Skipping invalid transaction {tx.signature[:8]}... (balance: {sender_balance}, required: {tx.amount})")
-        
-        # No valid transactions found
-        return False
 
     def is_valid_block(self, block: Block, previous_block: Block = False):
         if previous_block is False:
