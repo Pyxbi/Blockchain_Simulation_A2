@@ -81,31 +81,9 @@ The application provides an interactive menu-driven interface:
 ```
 
 ### Example Workflow:
-1. **Create wallets** (Option 1) - Generate Ed25519 key pairs for users
-2. **Add test funds** (Option 7) - Add initial balance for testing
-3. **Create transactions** (Option 2) - Send funds between wallets with digital signatures
-4. **Mine blocks** (Option 3) - Process pending transactions and earn mining rewards
-5. **View blockchain** (Option 4) - Inspect the complete chain with all transactions
-6. **Check balances** (Option 5) - Verify account balances after transactions
-
-## P2P Usage and Testing Guide
 
 For a full step-by-step walkthrough of multi-node setup, broadcasting, synchronization, double-spend prevention, and immutability checks, see:
 [GUIDE_P2P_Usage_and_Testing.md](./GUIDE_P2P_Usage_and_Testing.md)
-
-## Architecture
-
-### File Structure
-- `main.py` - Interactive CLI interface and user interaction logic
-- `blockchain.py` - Core blockchain class with persistence and P2P capabilities
-- `models.py` - Block and data structure definitions
-- `transaction.py` - Transaction class with Ed25519 signature verification
-- `consensus.py` - Proof-of-Work implementation with difficulty adjustment
-- `wallet.py` - Wallet creation and key management
-- `schema.py` - Marshmallow validation schemas for transactions and blocks
-- `persistence.py` - JSON-based data storage and recovery
-- `p2p.py` - Multi-node networking and synchronization
-
 
 ### Key Design Decisions
 - **Ed25519 Cryptography**: Used PyNaCl for fast, secure digital signatures
